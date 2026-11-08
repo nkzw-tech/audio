@@ -51,6 +51,12 @@ Pass `sampleRate` to `createAudio()` to set the context's sample rate. By defaul
 
 A sound can play more than once at the same time. Each playback has its own ID, so you can change the volume, rate, or position of one voice while the others keep playing.
 
+### Reducing Preloaded Sound Memory
+
+For a bank of compressed effects, pass `previewSeconds: 0.25` to `audio.sound()`. Web Audio keeps the original file and the first quarter second of decoded audio in memory. Playback starts with that opening while the rest decodes in the background. Overlapping voices share the full decode until the last voice finishes. Short effects that fit in the opening stay fully decoded.
+
+Choose a duration that gives decoding enough time on your slowest device and at your fastest playback rate. If decoding misses the handoff, the sound emits `bufferunderrun`, resumes from where the opening ended, and keeps the full decode for future plays. Starting beyond the opening waits for the full decode when it is absent.
+
 ### Playing Audio Sprites
 
 Let's put two effects in the same file. Each sprite defines a start offset and a duration in milliseconds.

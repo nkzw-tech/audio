@@ -5,6 +5,7 @@
  */
 
 import type { AudioMixer } from './AudioMixer.ts';
+import type { DecodedAsset } from './DecodedAudio.ts';
 import type { AudioOutput } from './index.ts';
 import { SpatialAudio, type SpatialState } from './SpatialAudio.ts';
 
@@ -31,6 +32,22 @@ type MediaEvents = {
   load(duration: number, ready: boolean): void;
 };
 
+type WebAudioEvents = {
+  ended(): void;
+  failed(error: unknown): void;
+  started(): void;
+  underrun(): void;
+};
+
+type PreviewPlayback = {
+  asset: DecodedAsset;
+  boundary: number;
+  events: WebAudioEvents;
+  lease: ReturnType<NonNullable<DecodedAsset['preview']>['acquire']>;
+  opening: boolean;
+  tail?: { source: AudioBufferSourceNode; when: number };
+};
+
 export class PlaybackVoice {
   state: 'ended' | 'paused' | 'playing' | 'queued' = 'ended';
   id: number;
@@ -47,6 +64,7 @@ export class PlaybackVoice {
   output: AudioOutput | null = null;
   cancelStart: (() => void) | undefined;
   #source: AudioBufferSourceNode | null = null;
+  #preview: PreviewPlayback | undefined;
   #gain: GainNode | null = null;
   #panner: SpatialAudio | null = null;
   #mediaEvents: AbortController | undefined;
@@ -138,35 +156,133 @@ export class PlaybackVoice {
     }
   }
 
-  startWebAudio(buffer: AudioBuffer, region: Region, offset: number, ended: () => void) {
-    const context = this.output?.context;
-    const input = this.#panner?.input;
-    if (!context || !input) {
+  startWebAudio(asset: DecodedAsset, region: Region, offset: number, events: WebAudioEvents) {
+    if (!asset.preview || region.end <= asset.buffer.duration) {
+      this.#startBuffer(asset.buffer, region, offset, events);
       return;
     }
+
+    const boundary = asset.buffer.duration;
+    const lease = asset.preview.acquire();
+    const opening = !lease.buffer && offset < boundary && this.rate > 0;
+    const preview: PreviewPlayback = { asset, boundary, events, lease, opening };
+    this.#preview = preview;
+    if (opening) {
+      this.#startBuffer(
+        asset.buffer,
+        { ...region, end: boundary, loop: false },
+        offset,
+        {
+          ...events,
+          ended: () => {
+            this.#source?.disconnect();
+            this.#source = null;
+          },
+        },
+        true,
+      );
+      this.region = region;
+      if (region.loop) {
+        this.scheduleBoundary(events.ended);
+      }
+    } else if (!lease.buffer) {
+      this.cancelStart = () => this.#releasePreview();
+    }
+
+    const ready = (buffer: AudioBuffer) => {
+      if (this.#preview !== preview) {
+        return;
+      }
+      try {
+        if (opening) {
+          this.#scheduleTail(preview, buffer);
+        } else {
+          this.cancelStart = undefined;
+          this.#startBuffer(buffer, this.region, offset, events);
+        }
+      } catch (error) {
+        events.failed(error);
+      }
+    };
+    if (lease.buffer) {
+      ready(lease.buffer);
+    } else {
+      void lease.decoded.then(ready, (error: unknown) => {
+        if (this.#preview === preview) {
+          events.failed(error);
+        }
+      });
+    }
+  }
+
+  #startBuffer(
+    buffer: AudioBuffer,
+    region: Region,
+    offset: number,
+    events: WebAudioEvents,
+    scheduled = false,
+  ) {
+    const context = this.output!.context;
     this.region = region;
     this.offset = offset;
     this.anchor = context.currentTime;
     this.state = 'playing';
-    const source = context.createBufferSource();
-    this.#source = source;
+    this.#source = this.#startSource(
+      buffer,
+      region,
+      offset,
+      scheduled ? this.anchor : 0,
+      events.ended,
+    );
+    if (region.loop) {
+      this.scheduleBoundary(events.ended);
+    }
+    events.started();
+  }
+
+  #startSource(
+    buffer: AudioBuffer,
+    region: Region,
+    offset: number,
+    when: number,
+    ended: () => void,
+  ) {
+    const source = this.output!.context.createBufferSource();
     source.buffer = buffer;
     source.loop = region.loop;
     source.loopStart = region.start;
     source.loopEnd = region.end;
     source.playbackRate.value = this.rate;
-    source.connect(input);
-    source.onended = () => {
-      if (this.#source === source) {
-        ended();
-      }
-    };
+    source.connect(this.#panner!.input);
+    source.onended = ended;
     if (region.loop) {
-      source.start(0, offset);
-      this.scheduleBoundary(ended);
+      source.start(when, offset);
     } else {
-      source.start(0, offset, region.end - offset);
+      source.start(when, offset, region.end - offset);
     }
+    return source;
+  }
+
+  #scheduleTail(preview: PreviewPlayback, buffer: AudioBuffer) {
+    const { asset, boundary, events } = preview;
+    const rate = Math.abs(this.rate);
+    if (!rate) {
+      return;
+    }
+    const now = this.output!.context.currentTime;
+    const deadline = this.anchor + (boundary - this.offset) / rate;
+    const when = Math.max(now, deadline);
+    if (now > deadline) {
+      this.anchor = now;
+      this.offset = boundary;
+      asset.buffer = buffer;
+      asset.preview = undefined;
+      events.underrun();
+    }
+    preview.tail = {
+      source: this.#startSource(buffer, this.region, boundary, when, events.ended),
+      when,
+    };
   }
 
   async startMedia(
@@ -220,6 +336,9 @@ export class PlaybackVoice {
     }
     const elapsed = (this.output?.context.currentTime ?? this.anchor) - this.anchor;
     const position = this.offset + elapsed * Math.abs(this.rate);
+    if (this.#preview?.opening && !this.#preview.tail) {
+      return Math.min(this.#preview.boundary, position);
+    }
     const { end, loop, start } = this.region;
     return loop && position >= end && end > start
       ? start + ((position - start) % (end - start))
@@ -255,9 +374,16 @@ export class PlaybackVoice {
     }
   }
 
-  #stopSource() {
-    const source = this.#source;
-    this.#source = null;
+  #releasePreview() {
+    const preview = this.#preview;
+    this.#preview = undefined;
+    if (preview) {
+      this.#disconnectSource(preview.tail?.source);
+      preview.lease.release();
+    }
+  }
+
+  #disconnectSource(source: AudioBufferSourceNode | null | undefined) {
     if (source) {
       source.onended = null;
       source.stop();
@@ -265,13 +391,15 @@ export class PlaybackVoice {
     }
   }
 
-  finishWebAudio() {
-    const source = this.#source;
+  #stopSource() {
+    this.#disconnectSource(this.#source);
     this.#source = null;
-    if (source) {
-      source.onended = null;
-      source.disconnect();
-    }
+    this.#releasePreview();
+  }
+
+  finishWebAudio() {
+    this.cancelStart = undefined;
+    this.#stopSource();
     this.clearBoundary();
     this.finishFade();
     this.offset = this.region.start;
@@ -295,17 +423,29 @@ export class PlaybackVoice {
   }
 
   applySpatial() {
-    this.#panner?.update(this.spatial, this.#source);
+    this.#panner?.update(this.spatial, this.#source, this.#preview?.tail?.source);
   }
 
   changeRate(rate: number, ended: () => void) {
-    if (this.state === 'playing' && this.output) {
+    const now = this.output?.context.currentTime;
+    const changed = rate !== this.rate;
+    if (this.state === 'playing' && now !== undefined && (changed || !this.#preview?.opening)) {
       this.offset = this.position();
-      this.anchor = this.output.context.currentTime;
+      this.anchor = now;
     }
     this.rate = rate;
-    if (this.#source && this.output) {
-      this.#source.playbackRate.setValueAtTime(rate, this.output.context.currentTime);
+    if (now !== undefined) {
+      this.#source?.playbackRate.setValueAtTime(rate, now);
+      const preview = this.#preview;
+      if (changed && preview?.opening && (!preview.tail || preview.tail.when > now)) {
+        this.#disconnectSource(preview.tail?.source);
+        preview.tail = undefined;
+        if (preview.lease.buffer) {
+          this.#scheduleTail(preview, preview.lease.buffer);
+        }
+      } else {
+        preview?.tail?.source.playbackRate.setValueAtTime(rate, now);
+      }
     } else if (this.media) {
       this.media.playbackRate = rate;
     }

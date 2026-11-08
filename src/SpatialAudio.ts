@@ -44,18 +44,18 @@ export class SpatialAudio {
 
   update(
     { attributes, orientation, pan, position }: SpatialState,
-    source: AudioBufferSourceNode | null,
+    ...sources: ReadonlyArray<AudioBufferSourceNode | null | undefined>
   ) {
     const time = this.context.currentTime;
     if (pan !== null) {
       const node =
         this.#panner?.kind === 'stereo' ? this.#panner.node : this.context.createStereoPanner();
-      this.#route({ kind: 'stereo', node }, source);
+      this.#route({ kind: 'stereo', node }, sources);
       node.pan.setValueAtTime(pan, time);
     } else if (position) {
       const node =
         this.#panner?.kind === 'spatial' ? this.#panner.node : this.context.createPanner();
-      this.#route({ kind: 'spatial', node }, source);
+      this.#route({ kind: 'spatial', node }, sources);
       node.coneInnerAngle = attributes.coneInnerAngle ?? 360;
       node.coneOuterAngle = attributes.coneOuterAngle ?? 360;
       node.coneOuterGain = attributes.coneOuterGain ?? 0;
@@ -67,17 +67,19 @@ export class SpatialAudio {
       setVector([node.positionX, node.positionY, node.positionZ], position, time);
       setVector([node.orientationX, node.orientationY, node.orientationZ], orientation, time);
     } else {
-      this.#route(null, source);
+      this.#route(null, sources);
     }
   }
 
-  #route(panner: Panner | null, source: AudioBufferSourceNode | null) {
+  #route(panner: Panner | null, sources: ReadonlyArray<AudioBufferSourceNode | null | undefined>) {
     if (this.#panner?.node !== panner?.node) {
-      source?.disconnect();
       this.#panner?.node.disconnect();
       this.#panner = panner;
       panner?.node.connect(this.gain);
-      source?.connect(this.input);
+      for (const source of sources) {
+        source?.disconnect();
+        source?.connect(this.input);
+      }
     }
   }
 

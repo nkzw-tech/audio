@@ -41,6 +41,7 @@ export type Audio = {
 export type Vector = [x: number, y: number, z: number];
 
 export type SoundEvent =
+  | 'bufferunderrun'
   | 'end'
   | 'fade'
   | 'load'
@@ -70,6 +71,7 @@ export type SoundOptions = {
   pool?: number;
   pos?: Vector;
   preload?: boolean | 'metadata';
+  previewSeconds?: number;
   rate?: number;
   sprite?: Readonly<Record<string, readonly [start: number, length: number, loop?: boolean]>>;
   src: string | ReadonlyArray<string>;

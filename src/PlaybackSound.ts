@@ -18,6 +18,7 @@ import { PlaybackVoice, type Region, type VoiceOptions } from './PlaybackVoice.t
 import type { SpatialState } from './SpatialAudio.ts';
 
 const Events = [
+  'bufferunderrun',
   'end',
   'fade',
   'load',
@@ -42,7 +43,10 @@ export class PlaybackSound implements Sound {
   readonly #voices: Array<PlaybackVoice> = [];
   readonly #events = new Map<SoundEvent, Array<Subscription>>();
   readonly #deferredFades: Array<() => void> = [];
-  readonly #options: Pick<SoundOptions, 'format' | 'pool' | 'preload' | 'sprite' | 'src' | 'xhr'>;
+  readonly #options: Pick<
+    SoundOptions,
+    'format' | 'pool' | 'preload' | 'previewSeconds' | 'sprite' | 'src' | 'xhr'
+  >;
   #output: AudioOutput | null;
   #bufferLease: BufferLease | undefined;
   #src: string | undefined;
@@ -59,8 +63,11 @@ export class PlaybackSound implements Sound {
     private readonly mixer: AudioMixer,
     options: SoundOptions,
   ) {
-    const { format, pool, preload, sprite, src, xhr } = options;
-    this.#options = { format, pool, preload, sprite, src, xhr };
+    const { format, pool, preload, previewSeconds, sprite, src, xhr } = options;
+    if (previewSeconds !== undefined && (!Number.isFinite(previewSeconds) || previewSeconds <= 0)) {
+      throw new RangeError('The sound preview must have a positive, finite duration.');
+    }
+    this.#options = { format, pool, preload, previewSeconds, sprite, src, xhr };
     const output = mixer.getOutput();
     this.#output = options.html5 ? null : output;
     this.#loop = options.loop ?? false;
@@ -194,15 +201,20 @@ export class PlaybackSound implements Sound {
       }
     }
     if (this.#output) {
-      const lease = this.mixer.buffers.acquire(this.#output.context, url, this.#options.xhr);
+      const lease = this.mixer.buffers.acquire(
+        this.#output.context,
+        url,
+        this.#options.xhr,
+        this.#options.previewSeconds,
+      );
       this.#bufferLease = lease;
-      if (lease.buffer) {
-        this.#loaded(lease.buffer.duration);
+      if (lease.asset) {
+        this.#loaded(lease.asset.duration);
       } else {
         void lease.decoded.then(
-          (buffer) => {
+          (asset) => {
             if (this.#bufferLease === lease) {
-              this.#loaded(buffer.duration);
+              this.#loaded(asset.duration);
             }
           },
           (error: unknown) => {
@@ -340,22 +352,29 @@ export class PlaybackSound implements Sound {
       void voice.startMedia(src, region, offset, started, ended, (error) =>
         this.#emit('playerror', voice.id, error),
       );
-    } else if (this.#state === 'loaded' && this.#bufferLease?.buffer) {
-      const buffer = this.#bufferLease.buffer;
+    } else if (this.#state === 'loaded' && this.#bufferLease?.asset) {
+      const { asset } = this.#bufferLease;
+      const failed = (error: unknown) => {
+        voice.finishWebAudio();
+        this.mixer.idle();
+        this.#emit('playerror', id, error);
+      };
       const cancel = this.mixer.whenRunning(() => {
         voice.cancelStart = undefined;
         if (!this.#disposed && voice.state === 'queued') {
           try {
-            voice.startWebAudio(buffer, this.#region(voice), offset, ended);
-            queueMicrotask(started);
+            voice.startWebAudio(asset, this.#region(voice), offset, {
+              ended,
+              failed,
+              started: () => queueMicrotask(started),
+              underrun: () => this.#emit('bufferunderrun', id),
+            });
           } catch (error) {
-            voice.finishWebAudio();
-            this.mixer.idle();
-            this.#emit('playerror', voice.id, error);
+            failed(error);
           }
         }
       });
-      if (voice.state === 'queued') {
+      if (voice.state === 'queued' && !voice.cancelStart) {
         voice.cancelStart = cancel;
       }
     }
