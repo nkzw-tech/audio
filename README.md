@@ -339,6 +339,10 @@ Exposes the master `GainNode` with Web Audio API. This can be useful for writing
 
 ### Global Methods
 The following methods are used to modify all sounds globally, and are called from the `Audio` object.
+
+#### retainAudioContext()
+Keeps the shared Web Audio context active while audio nodes outside the library are playing. Call the returned release function when they stop so idle suspension can resume.
+
 #### mute(muted)
 Mute or unmute all sounds.
 * **muted**: `Boolean` True to mute and false to unmute.

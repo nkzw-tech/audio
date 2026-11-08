@@ -323,7 +323,17 @@
       // Call this method on touch start to create and play a buffer,
       // then check if the audio actually played to determine if
       // audio has now been unlocked on iOS, Android, etc.
+      var locked = false;
       var unlock = function(e) {
+        if (locked) {
+          return;
+        }
+
+        locked = true;
+        setTimeout(function() {
+          locked = false;
+        }, 300);
+
         // Create a pool of unlocked HTML5 Audio objects that can
         // be used for playing sounds without user interaction. HTML5
         // Audio objects must be individually unlocked, as opposed
@@ -426,14 +436,6 @@
         return self._html5AudioPool.pop();
       }
 
-      //.Check if the audio is locked and throw a warning.
-      var testPlay = new Audio().play();
-      if (testPlay && typeof Promise !== 'undefined' && (testPlay instanceof Promise || typeof testPlay.then === 'function')) {
-        testPlay.catch(function() {
-          console.warn('HTML5 Audio pool exhausted, returning potentially locked audio object.');
-        });
-      }
-
       return new Audio();
     },
 
@@ -452,6 +454,20 @@
       return self;
     },
 
+    retainAudioContext: function() {
+      var self = this;
+      var released = false;
+      self._externalAudio = (self._externalAudio || 0) + 1;
+      self._autoResume();
+      return function() {
+        if (!released) {
+          released = true;
+          self._externalAudio--;
+          self._autoSuspend();
+        }
+      };
+    },
+
     /**
      * Automatically suspend the Web Audio AudioContext after no sound has played for 30 seconds.
      * This saves processing/energy and fixes various browser-specific bugs with audio getting stuck.
@@ -460,7 +476,7 @@
     _autoSuspend: function() {
       var self = this;
 
-      if (!self.autoSuspend || !self.ctx || typeof self.ctx.suspend === 'undefined' || !audio.usingWebAudio) {
+      if (!self.autoSuspend || self._externalAudio || !self.ctx || typeof self.ctx.suspend === 'undefined' || !audio.usingWebAudio) {
         return;
       }
 
@@ -481,7 +497,7 @@
 
       // If no sound has played after 30 seconds, suspend the context.
       self._suspendTimer = setTimeout(function() {
-        if (!self.autoSuspend) {
+        if (!self.autoSuspend || self._externalAudio) {
           return;
         }
 
@@ -853,6 +869,9 @@
       if (self._webAudio) {
         // Fire this when the sound is ready to play to begin Web Audio playback.
         var playWebAudio = function() {
+          if (!sound._node) {
+            return;
+          }
           self._playLock = false;
           setParams();
           self._refreshBuffer(sound);
@@ -888,6 +907,7 @@
           self._playLock = true;
 
           // Wait for the audio context to resume before playing.
+          self.off('resume');
           self.once('resume', playWebAudio);
 
           // Cancel the end timer.
@@ -953,14 +973,15 @@
             if (sprite !== '__default' || sound._loop) {
               self._endTimers[sound._id] = setTimeout(self._ended.bind(self, sound), timeout);
             } else {
-              self._endTimers[sound._id] = function() {
+              var fn = function() {
                 // Fire ended on this audio node.
                 self._ended(sound);
 
                 // Clear this listener.
-                node.removeEventListener('ended', self._endTimers[sound._id], false);
+                node.removeEventListener('ended', fn, false);
               };
-              node.addEventListener('ended', self._endTimers[sound._id], false);
+              self._endTimers[sound._id] = fn;
+              node.addEventListener('ended', fn, false);
             }
           } catch (err) {
             self._emit('playerror', sound._id, err);
@@ -982,13 +1003,15 @@
           self._state = 'loading';
 
           var listener = function() {
+            node.removeEventListener(audio._canPlayEvent, listener, false);
+            if (!sound._node) {
+              return;
+            }
             self._state = 'loaded';
             
             // Begin playback.
             playHtml5();
 
-            // Clear this listener.
-            node.removeEventListener(audio._canPlayEvent, listener, false);
           };
           node.addEventListener(audio._canPlayEvent, listener, false);
 
@@ -2417,6 +2440,9 @@
       }
 
       xhr.onload = function() {
+        if (self._state === 'unloaded') {
+          return;
+        }
         // Make sure we get a successful response back.
         var code = (xhr.status + '')[0];
         if (code !== '0' && code !== '2' && code !== '3') {
@@ -2428,7 +2454,7 @@
       };
       xhr.onerror = function() {
         // If there is an error, switch to HTML5 Audio.
-        if (self._webAudio) {
+        if (self._webAudio && self._state !== 'unloaded') {
           self._html5 = true;
           self._webAudio = false;
           self._sounds = [];
