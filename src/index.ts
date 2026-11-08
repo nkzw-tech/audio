@@ -81,15 +81,15 @@ export type Sound = {
   off(event?: SoundEvent, listener?: SoundListener | number, id?: number): Sound;
   on(event: SoundEvent, listener: SoundListener, id?: number): Sound;
   once(event: SoundEvent, listener: SoundListener, id?: number): Sound;
-  orientation(): Vector;
-  orientation(x: number, y: number, z: number, id?: number): Sound;
+  orientation(): Sound | Vector;
+  orientation(x: number, y?: number, z?: number, id?: number): Sound;
   pannerAttr(): PannerOptions;
   pannerAttr(id: number): PannerOptions;
   pannerAttr(options: PannerOptions, id?: number): Sound;
   pause(id?: number): Sound;
   play(spriteOrId?: string | number): number | null | undefined;
   playing(id?: number): boolean;
-  pos(): Vector;
+  pos(): Sound | Vector | null;
   pos(x: number, y?: number, z?: number, id?: number): Sound;
   position(id?: number): number;
   rate(): number;
@@ -99,6 +99,7 @@ export type Sound = {
   seek(valueOrId: number): Sound | number;
   seek(value: number, id: number): Sound;
   state(): 'loaded' | 'loading' | 'unloaded';
+  stereo(): Sound | number | null;
   stereo(pan: number, id?: number): Sound;
   stop(id?: number): Sound;
   unload(): null;

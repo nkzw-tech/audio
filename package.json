@@ -1,6 +1,6 @@
 {
   "name": "@nkzw/audio",
-  "version": "2.2.4",
+  "version": "1.0.0",
   "description": "Cross-platform audio playback for the web.",
   "keywords": [
     "audio",
@@ -54,9 +54,12 @@
       "import": "./dist/music-worker.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vp pack",
-    "prepack": "vp pack",
+    "prepack": "vp pack 1>&2",
     "prepare": "vp config",
     "test": "vp pack && node --test tests/*.test.mjs"
   },

@@ -45,3 +45,6 @@ jobs:
 
       - name: Run tests
         run: vp run test
+
+      - name: Verify package contents
+        run: npm pack --dry-run --ignore-scripts

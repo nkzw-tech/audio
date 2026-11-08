@@ -29,7 +29,7 @@ const effects = audio.sound({
 });
 
 const voice = effects.play('impact');
-if (voice !== null) {
+if (voice != null) {
   effects.volume(0.5, voice);
 }
 ```
