@@ -24,7 +24,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @return {audio/Number}     Self or current stereo panning value.
    */
   AudioController.prototype.stereo = function(pan) {
-    var self = this;
+    const self = this;
 
     // Stop right here if not using Web Audio.
     if (!self.ctx || !self.ctx.listener) {
@@ -48,7 +48,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @return {audio/Array}   Self or current listener position.
    */
   AudioController.prototype.pos = function(x, y, z) {
-    var self = this;
+    const self = this;
 
     // Stop right here if not using Web Audio.
     if (!self.ctx || !self.ctx.listener) {
@@ -91,7 +91,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @return {audio/Array}     Returns self or the current orientation vectors.
    */
   AudioController.prototype.orientation = function(x, y, z, xUp, yUp, zUp) {
-    var self = this;
+    const self = this;
 
     // Stop right here if not using Web Audio.
     if (!self.ctx || !self.ctx.listener) {
@@ -136,7 +136,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    */
   Sound.prototype.init = (function(_super) {
     return function(o) {
-      var self = this;
+      const self = this;
 
       // Setup user-defined default properties.
       self._orientation = o.orientation || [1, 0, 0];
@@ -170,7 +170,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @return {Sound/Number}    Returns self or the current stereo panning value.
    */
   Sound.prototype.stereo = function(pan, id) {
-    var self = this;
+    const self = this;
 
     // Stop right here if not using Web Audio.
     if (!self._webAudio) {
@@ -255,7 +255,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @return {Sound/Array}    Returns self or the current 3D spatial position: [x, y, z].
    */
   Sound.prototype.pos = function(x, y, z, id) {
-    var self = this;
+    const self = this;
 
     // Stop right here if not using Web Audio.
     if (!self._webAudio) {
@@ -334,7 +334,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @return {Sound/Array}    Returns self or the current 3D spatial orientation: [x, y, z].
    */
   Sound.prototype.orientation = function(x, y, z, id) {
-    var self = this;
+    const self = this;
 
     // Stop right here if not using Web Audio.
     if (!self._webAudio) {
@@ -438,7 +438,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @return {Sound/Object} Returns self or current panner attributes.
    */
   Sound.prototype.pannerAttr = function() {
-    var self = this;
+    const self = this;
     var args = arguments;
     var o, id, sound;
 
@@ -548,7 +548,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    */
   SoundInstance.prototype.init = (function(_super) {
     return function() {
-      var self = this;
+      const self = this;
       var parent = self._parent;
 
       // Setup user-defined default properties.
@@ -576,7 +576,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    */
   SoundInstance.prototype.reset = (function(_super) {
     return function() {
-      var self = this;
+      const self = this;
       var parent = self._parent;
 
       // Reset all spatial plugin properties on this sound.

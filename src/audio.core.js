@@ -9,6 +9,8 @@
 
 import { installSpatial } from './plugins/audio.spatial.js';
 
+const SilentMedia = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+
 /**
  * @param {import('./index.ts').AudioOptions} [options]
  * @returns {import('./index.ts').Audio}
@@ -32,8 +34,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Initialize the global audio object.
      * @return {audio}
      */
-    init: function() {
-      var self = this || audio;
+    init() {
+      const self = this;
 
       // Create a global ID counter.
       self._counter = 1000;
@@ -48,7 +50,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       self._muted = false;
       self._volume = 1;
       self._canPlayEvent = 'canplaythrough';
-      self._navigator = (typeof window !== 'undefined' && window.navigator) ? window.navigator : null;
+      self._navigator = globalThis.navigator;
 
       // Public properties.
       self.masterGain = null;
@@ -71,8 +73,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Float} vol Volume from 0.0 to 1.0.
      * @return {audio/Float}     Returns self or current volume.
      */
-    volume: function(vol) {
-      var self = this || audio;
+    volume(vol) {
+      const self = this;
       vol = parseFloat(vol);
 
       // If we don't have an AudioContext created yet, run the setup.
@@ -120,8 +122,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Handle muting and unmuting globally.
      * @param  {Boolean} muted Is muted or not.
      */
-    mute: function(muted) {
-      var self = this || audio;
+    mute(muted) {
+      const self = this;
 
       // If we don't have an AudioContext created yet, run the setup.
       if (!self.ctx) {
@@ -158,8 +160,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     /**
      * Handle stopping all sounds globally.
      */
-    stop: function() {
-      var self = this || audio;
+    stop() {
+      const self = this;
 
       // Loop through all Sounds and stop them.
       for (var i=0; i<self._soundGroups.length; i++) {
@@ -173,8 +175,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Unload and destroy all currently loaded Sound objects.
      * @return {audio}
      */
-    unload: function() {
-      var self = this || audio;
+    unload() {
+      const self = this;
 
       for (var i=self._soundGroups.length-1; i>=0; i--) {
         self._soundGroups[i].unload();
@@ -195,16 +197,16 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {String} ext Audio file extention.
      * @return {Boolean}
      */
-    codecs: function(ext) {
-      return (this || audio)._codecs[ext.replace(/^x-/, '')];
+    codecs(ext) {
+      return (this)._codecs[ext.replace(/^x-/, '')];
     },
 
     /**
      * Setup various state values for global tracking.
      * @return {audio}
      */
-    _setup: function() {
-      var self = this || audio;
+    _setup() {
+      const self = this;
 
       // Keeps track of the suspend/resume state of the AudioContext.
       self.state = self.ctx ? self.ctx.state || 'suspended' : 'suspended';
@@ -231,14 +233,6 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
         }
       }
 
-      // Test to make sure audio isn't disabled in Internet Explorer.
-      try {
-        var test = new Audio();
-        if (test.muted) {
-          self.noAudio = true;
-        }
-      } catch (e) {}
-
       // Check for supported codecs.
       if (!self.noAudio) {
         self._setupCodecs();
@@ -251,47 +245,36 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Check for browser support for various codecs and cache the results.
      * @return {audio}
      */
-    _setupCodecs: function() {
-      var self = this || audio;
+    _setupCodecs() {
+      const self = this;
       var audioTest = null;
 
-      // Must wrap in a try/catch because IE11 in server mode throws an error.
       try {
-        audioTest = (typeof Audio !== 'undefined') ? new Audio() : null;
-      } catch (err) {
+        audioTest = typeof Audio === 'undefined' ? null : new Audio();
+      } catch {
+        return self;
+      }
+      if (!audioTest) {
         return self;
       }
 
-      if (!audioTest || typeof audioTest.canPlayType !== 'function') {
-        return self;
-      }
-
-      var mpegTest = audioTest.canPlayType('audio/mpeg;').replace(/^no$/, '');
-
-      // Opera version <33 has mixed MP3 support, so we need to check for and block it.
-      var ua = self._navigator ? self._navigator.userAgent : '';
-      var checkOpera = ua.match(/OPR\/(\d+)/g);
-      var isOldOpera = (checkOpera && parseInt(checkOpera[0].split('/')[1], 10) < 33);
-      var checkSafari = ua.indexOf('Safari') !== -1 && ua.indexOf('Chrome') === -1;
-      var safariVersion = ua.match(/Version\/(.*?) /);
-      var isOldSafari = (checkSafari && safariVersion && parseInt(safariVersion[1], 10) < 15);
-
+      const mpegTest = audioTest.canPlayType('audio/mpeg;');
       self._codecs = {
-        mp3: !!(!isOldOpera && (mpegTest || audioTest.canPlayType('audio/mp3;').replace(/^no$/, ''))),
+        mp3: Boolean(mpegTest || audioTest.canPlayType('audio/mp3;')),
         mpeg: !!mpegTest,
-        opus: !!audioTest.canPlayType('audio/ogg; codecs="opus"').replace(/^no$/, ''),
-        ogg: !!audioTest.canPlayType('audio/ogg; codecs="vorbis"').replace(/^no$/, ''),
-        oga: !!audioTest.canPlayType('audio/ogg; codecs="vorbis"').replace(/^no$/, ''),
-        wav: !!(audioTest.canPlayType('audio/wav; codecs="1"') || audioTest.canPlayType('audio/wav')).replace(/^no$/, ''),
-        aac: !!audioTest.canPlayType('audio/aac;').replace(/^no$/, ''),
-        caf: !!audioTest.canPlayType('audio/x-caf;').replace(/^no$/, ''),
-        m4a: !!(audioTest.canPlayType('audio/x-m4a;') || audioTest.canPlayType('audio/m4a;') || audioTest.canPlayType('audio/aac;')).replace(/^no$/, ''),
-        m4b: !!(audioTest.canPlayType('audio/x-m4b;') || audioTest.canPlayType('audio/m4b;') || audioTest.canPlayType('audio/aac;')).replace(/^no$/, ''),
-        mp4: !!(audioTest.canPlayType('audio/x-mp4;') || audioTest.canPlayType('audio/mp4;') || audioTest.canPlayType('audio/aac;')).replace(/^no$/, ''),
-        weba: !!(!isOldSafari && audioTest.canPlayType('audio/webm; codecs="vorbis"').replace(/^no$/, '')),
-        webm: !!(!isOldSafari && audioTest.canPlayType('audio/webm; codecs="vorbis"').replace(/^no$/, '')),
-        dolby: !!audioTest.canPlayType('audio/mp4; codecs="ec-3"').replace(/^no$/, ''),
-        flac: !!(audioTest.canPlayType('audio/x-flac;') || audioTest.canPlayType('audio/flac;')).replace(/^no$/, '')
+        opus: !!audioTest.canPlayType('audio/ogg; codecs="opus"'),
+        ogg: !!audioTest.canPlayType('audio/ogg; codecs="vorbis"'),
+        oga: !!audioTest.canPlayType('audio/ogg; codecs="vorbis"'),
+        wav: !!(audioTest.canPlayType('audio/wav; codecs="1"') || audioTest.canPlayType('audio/wav')),
+        aac: !!audioTest.canPlayType('audio/aac;'),
+        caf: !!audioTest.canPlayType('audio/x-caf;'),
+        m4a: !!(audioTest.canPlayType('audio/x-m4a;') || audioTest.canPlayType('audio/m4a;') || audioTest.canPlayType('audio/aac;')),
+        m4b: !!(audioTest.canPlayType('audio/x-m4b;') || audioTest.canPlayType('audio/m4b;') || audioTest.canPlayType('audio/aac;')),
+        mp4: !!(audioTest.canPlayType('audio/x-mp4;') || audioTest.canPlayType('audio/mp4;') || audioTest.canPlayType('audio/aac;')),
+        weba: Boolean(audioTest.canPlayType('audio/webm; codecs="vorbis"')),
+        webm: Boolean(audioTest.canPlayType('audio/webm; codecs="vorbis"')),
+        dolby: !!audioTest.canPlayType('audio/mp4; codecs="ec-3"'),
+        flac: !!(audioTest.canPlayType('audio/x-flac;') || audioTest.canPlayType('audio/flac;'))
       };
 
       return self;
@@ -303,8 +286,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Concept from: http://paulbakaus.com/tutorials/html5/web-audio-on-ios/
      * @return {audio}
      */
-    _unlockAudio: function() {
-      var self = this || audio;
+    _unlockAudio() {
+      const self = this;
 
       // Only run this if Web Audio is supported and it hasn't already been unlocked.
       if (self._audioUnlocked || !self.ctx) {
@@ -389,11 +372,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
         source.connect(self.ctx.destination);
 
         // Play the empty buffer.
-        if (typeof source.start === 'undefined') {
-          source.noteOn(0);
-        } else {
-          source.start(0);
-        }
+        source.start(0);
 
         // Calling resume() on a stack initiated by user gesture is what actually unlocks the audio on Android Chrome >= 55.
         self.ctx.resume().catch(() => {});
@@ -437,8 +416,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * return a new Audio object and throw a warning.
      * @return {Audio} HTML5 Audio object.
      */
-    _obtainHtml5Audio: function() {
-      var self = this || audio;
+    _obtainHtml5Audio() {
+      const self = this;
 
       // Return the next object from the pool if one exists.
       if (self._html5AudioPool.length) {
@@ -452,8 +431,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Return an activated HTML5 Audio object to the pool.
      * @return {audio}
      */
-    _releaseHtml5Audio: function(audio) {
-      var self = this || audio;
+    _releaseHtml5Audio(audio) {
+      const self = this;
 
       // Don't add audio to the pool if we don't know if it has been unlocked.
       if (audio._unlocked) {
@@ -463,8 +442,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       return self;
     },
 
-    retainAudioContext: function() {
-      var self = this;
+    retainAudioContext() {
+      const self = this;
       var released = false;
       if (lifetime.signal.aborted) {
         throw new Error('The audio instance has been disposed.');
@@ -485,8 +464,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * This saves processing/energy and fixes various browser-specific bugs with audio getting stuck.
      * @return {audio}
      */
-    _autoSuspend: function() {
-      var self = this;
+    _autoSuspend() {
+      const self = this;
 
       if (!self.autoSuspend || self._externalAudio || !self.ctx || typeof self.ctx.suspend === 'undefined' || !audio.usingWebAudio) {
         return;
@@ -542,8 +521,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Automatically resume the Web Audio AudioContext when a new sound is played.
      * @return {audio}
      */
-    _autoResume: function() {
-      var self = this;
+    _autoResume() {
+      const self = this;
 
       if (!self.ctx || typeof self.ctx.resume === 'undefined' || !audio.usingWebAudio) {
         return;
@@ -589,7 +568,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
    * @param {Object} o Passed in properties for this group.
    */
   var Sound = function(o) {
-    var self = this;
+    const self = this;
 
     // Throw an error if no source is provided.
     if (!o.src || o.src.length === 0) {
@@ -605,8 +584,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Object} o Passed in properties for this group.
      * @return {Sound}
      */
-    init: function(o) {
-      var self = this;
+    init(o) {
+      const self = this;
 
       prepareOutput();
 
@@ -680,8 +659,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Load the audio file.
      * @return {audio}
      */
-    load: function() {
-      var self = this;
+    load() {
+      const self = this;
       var url = null;
 
       // If no audio is available, quit immediately.
@@ -765,8 +744,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Boolean} internal Internal Use: true prevents event firing.
      * @return {Number}          SoundInstance ID.
      */
-    play: function(sprite, internal) {
-      var self = this;
+    play(sprite, internal) {
+      const self = this;
       var id = null;
       if (lifetime.signal.aborted) {
         return null;
@@ -896,11 +875,10 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
           node.gain.setValueAtTime(vol, audio.ctx.currentTime);
           sound._playStart = audio.ctx.currentTime;
 
-          // Play the sound using the supported method.
-          if (typeof node.bufferSource.start === 'undefined') {
-            sound._loop ? node.bufferSource.noteGrainOn(0, seek, 86400) : node.bufferSource.noteGrainOn(0, seek, duration);
+          if (sound._loop) {
+            node.bufferSource.start(0, seek);
           } else {
-            sound._loop ? node.bufferSource.start(0, seek, 86400) : node.bufferSource.start(0, seek, duration);
+            node.bufferSource.start(0, seek, duration);
           }
 
           // Start a new timer if none is present.
@@ -938,44 +916,30 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
 
           // Some browsers will throw an error if this is called without user interaction.
           try {
-            var play = node.play();
+            const play = node.play();
+            self._playLock = true;
+            setParams();
 
-            // Support older browsers that don't support promises, and thus don't have this issue.
-            if (play && typeof Promise !== 'undefined' && (play instanceof Promise || typeof play.then === 'function')) {
-              // Implements a lock to prevent DOMException: The play() request was interrupted by a call to pause().
-              self._playLock = true;
-
-              // Set param values immediately.
-              setParams();
-
-              // Releases the lock and executes queued actions.
-              play
-                .then(function() {
-                  self._playLock = false;
-                  node._unlocked = true;
-                  if (!internal) {
-                    self._emit('play', sound._id);
-                  } else {
-                    self._loadQueue();
-                  }
-                })
-                .catch(function() {
-                  self._playLock = false;
-                  self._emit('playerror', sound._id, 'Playback was unable to start. This is most commonly an issue ' +
-                    'on mobile devices and Chrome where playback was not within a user interaction.');
-
-                  // Reset the ended and paused values.
-                  sound._ended = true;
-                  sound._paused = true;
-                });
-            } else if (!internal) {
+            play.then(() => {
+              if (sound._node !== node) {
+                return;
+              }
               self._playLock = false;
-              setParams();
-              self._emit('play', sound._id);
-            }
-
-            // Setting rate before playing won't work in IE, so we set it again here.
-            node.playbackRate = sound._rate;
+              node._unlocked = true;
+              if (internal) {
+                self._loadQueue();
+              } else {
+                self._emit('play', sound._id);
+              }
+            }, () => {
+              if (sound._node !== node) {
+                return;
+              }
+              self._playLock = false;
+              self._emit('playerror', sound._id, 'Playback was unable to start. Start audio from a user gesture.');
+              sound._ended = true;
+              sound._paused = true;
+            });
 
             // If the node is still paused, then we can assume there was a playback issue.
             if (node.paused) {
@@ -1004,14 +968,12 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
         };
 
         // If this is streaming audio, make sure the src is set and load again.
-        if (node.src === 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA') {
+        if (node.src === SilentMedia) {
           node.src = self._src;
           node.load();
         }
 
-        // Play immediately if ready, or wait for the 'canplaythrough'e vent.
-        var loadedNoReadyState = (window && window.ejecta) || (!node.readyState && audio._navigator.isCocoonJS);
-        if (node.readyState >= 3 || loadedNoReadyState) {
+        if (node.readyState >= 3) {
           playHtml5();
         } else {
           self._playLock = true;
@@ -1043,8 +1005,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} id The sound ID (empty to pause all in group).
      * @return {Sound}
      */
-    pause: function(id) {
-      var self = this;
+    pause(id) {
+      const self = this;
 
       // If the sound hasn't loaded or a play() promise is pending, add it to the load queue to pause when capable.
       if (self._state !== 'loaded' || self._playLock) {
@@ -1084,11 +1046,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
                 continue;
               }
 
-              if (typeof sound._node.bufferSource.stop === 'undefined') {
-                sound._node.bufferSource.noteOff(0);
-              } else {
-                sound._node.bufferSource.stop(0);
-              }
+              sound._node.bufferSource.stop(0);
 
               // Clean up the buffer source.
               self._cleanBuffer(sound._node);
@@ -1113,8 +1071,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Boolean} internal Internal Use: true prevents event firing.
      * @return {Sound}
      */
-    stop: function(id, internal) {
-      var self = this;
+    stop(id, internal) {
+      const self = this;
 
       // If the sound hasn't loaded, add it to the load queue to stop when capable.
       if (self._state !== 'loaded' || self._playLock) {
@@ -1152,11 +1110,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
             if (self._webAudio) {
               // Make sure the sound's AudioBufferSourceNode has been created.
               if (sound._node.bufferSource) {
-                if (typeof sound._node.bufferSource.stop === 'undefined') {
-                  sound._node.bufferSource.noteOff(0);
-                } else {
-                  sound._node.bufferSource.stop(0);
-                }
+                sound._node.bufferSource.stop(0);
 
                 // Clean up the buffer source.
                 self._cleanBuffer(sound._node);
@@ -1187,8 +1141,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} id    The sound ID to update (omit to mute/unmute all).
      * @return {Sound}
      */
-    mute: function(muted, id) {
-      var self = this;
+    mute(muted, id) {
+      const self = this;
 
       // If the sound hasn't loaded, add it to the load queue to mute when capable.
       if (self._state !== 'loaded'|| self._playLock) {
@@ -1247,8 +1201,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      *   volume(vol, id) -> Sets the volume of passed sound id.
      * @return {Sound/Number} Returns self or current volume.
      */
-    volume: function() {
-      var self = this;
+    volume() {
+      const self = this;
       var args = arguments;
       var vol, id;
 
@@ -1329,8 +1283,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} id   The sound id (omit to fade all sounds).
      * @return {Sound}
      */
-    fade: function(from, to, len, id) {
-      var self = this;
+    fade(from, to, len, id) {
+      const self = this;
 
       // If the sound hasn't loaded, add it to the load queue to fade when capable.
       if (self._state !== 'loaded' || self._playLock) {
@@ -1390,8 +1344,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} id   The sound id to fade.
      * @param  {Boolean} isGroup   If true, set the volume on the group.
      */
-    _startFadeInterval: function(sound, from, to, len, id, isGroup) {
-      var self = this;
+    _startFadeInterval(sound, from, to, len, id, isGroup) {
+      const self = this;
       var vol = from;
       var diff = to - from;
       var steps = Math.abs(diff / 0.01);
@@ -1447,8 +1401,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} id The sound id.
      * @return {Sound}
      */
-    _stopFade: function(id) {
-      var self = this;
+    _stopFade(id) {
+      const self = this;
       var sound = self._soundById(id);
 
       if (sound && sound._interval) {
@@ -1474,8 +1428,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      *   loop(loop, id) -> Sets the loop value of passed sound id.
      * @return {Sound/Boolean} Returns self or current loop value.
      */
-    loop: function() {
-      var self = this;
+    loop() {
+      const self = this;
       var args = arguments;
       var loop, id, sound;
 
@@ -1531,8 +1485,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      *   rate(rate, id) -> Sets the playback rate of passed sound id.
      * @return {Sound/Number} Returns self or the current playback rate.
      */
-    rate: function() {
-      var self = this;
+    rate() {
+      const self = this;
       var args = arguments;
       var rate, id;
 
@@ -1626,8 +1580,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      *   seek(seek, id) -> Sets the seek position of passed sound id.
      * @return {Sound/Number} Returns self or the current seek position.
      */
-    seek: function() {
-      var self = this;
+    seek() {
+      const self = this;
       var args = arguments;
       var seek, id;
 
@@ -1737,8 +1691,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number}  id The sound id to check. If none is passed, the whole sound group is checked.
      * @return {Boolean} True if playing and false if not.
      */
-    playing: function(id) {
-      var self = this;
+    playing(id) {
+      const self = this;
 
       // Check the passed sound ID (if any).
       if (typeof id === 'number') {
@@ -1761,8 +1715,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} id The sound id to check. If none is passed, return full source duration.
      * @return {Number} Audio duration in seconds.
      */
-    duration: function(id) {
-      var self = this;
+    duration(id) {
+      const self = this;
       var duration = self._duration;
 
       // If we pass an ID, get the sound and return the sprite length.
@@ -1778,7 +1732,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Returns the current loaded state of this Sound.
      * @return {String} 'unloaded', 'loading', 'loaded'
      */
-    state: function() {
+    state() {
       return this._state;
     },
 
@@ -1786,8 +1740,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Unload and destroy the current Sound object.
      * This will immediately stop all sound instances attached to this group.
      */
-    unload: function() {
-      var self = this;
+    unload() {
+      const self = this;
 
       // Stop playing any active sounds.
       var sounds = self._sounds;
@@ -1799,7 +1753,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
 
         // Remove the source or disconnect.
         if (!self._webAudio) {
-          // Set the source to 0-second silence to stop any downloading (except in IE).
+          // Set the source to 0-second silence to stop any downloading.
           self._clearSound(sounds[i]._node);
 
           // Remove any event listeners.
@@ -1833,8 +1787,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
         }
       }
 
-      if (cache && remCache) {
-        delete cache[self._src];
+      if (remCache) {
+        cache.delete(self._src);
       }
 
       // Clear global errors.
@@ -1843,7 +1797,6 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       // Clear out `self`.
       self._state = 'unloaded';
       self._sounds = [];
-      self = null;
 
       return null;
     },
@@ -1856,8 +1809,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number}   once  (INTERNAL) Marks event to fire only once.
      * @return {Sound}
      */
-    on: function(event, fn, id, once) {
-      var self = this;
+    on(event, fn, id, once) {
+      const self = this;
       var events = self['_on' + event];
 
       if (typeof fn === 'function') {
@@ -1874,8 +1827,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number}   id    (optional) Only remove events for this sound.
      * @return {Sound}
      */
-    off: function(event, fn, id) {
-      var self = this;
+    off(event, fn, id) {
+      const self = this;
       var events = self['_on' + event];
       var i = 0;
 
@@ -1917,8 +1870,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number}   id    (optional) Only listen to events for this sound.
      * @return {Sound}
      */
-    once: function(event, fn, id) {
-      var self = this;
+    once(event, fn, id) {
+      const self = this;
 
       // Setup the event listener.
       self.on(event, fn, id, 1);
@@ -1933,8 +1886,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} msg   Message to go with event.
      * @return {Sound}
      */
-    _emit: function(event, id, msg) {
-      var self = this;
+    _emit(event, id, msg) {
+      const self = this;
       var events = self['_on' + event];
 
       // Loop through event store and fire all functions.
@@ -1964,8 +1917,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * after the previous has finished executing (even if async like play).
      * @return {Sound}
      */
-    _loadQueue: function(event) {
-      var self = this;
+    _loadQueue(event) {
+      const self = this;
 
       if (self._queue.length > 0) {
         var task = self._queue[0];
@@ -1990,13 +1943,10 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {SoundInstance} sound The sound object to work with.
      * @return {Sound}
      */
-    _ended: function(sound) {
-      var self = this;
+    _ended(sound) {
+      const self = this;
       var sprite = sound._sprite;
 
-      // If we are using IE and there was network latency we may be clipping
-      // audio before it completes playing. Lets check the node to make sure it
-      // believes it has completed, before ending the playback.
       if (!self._webAudio && sound._node && !sound._node.paused && !sound._node.ended && sound._node.currentTime < sound._stop) {
         setTimeout(self._ended.bind(self, sound), 100);
         return self;
@@ -2052,8 +2002,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} id The sound ID.
      * @return {Sound}
      */
-    _clearTimer: function(id) {
-      var self = this;
+    _clearTimer(id) {
+      const self = this;
 
       if (self._endTimers[id]) {
         // Clear the timeout or remove the ended listener.
@@ -2077,8 +2027,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} id SoundInstance ID
      * @return {Object}    SoundInstance object or null.
      */
-    _soundById: function(id) {
-      var self = this;
+    _soundById(id) {
+      const self = this;
 
       // Loop through all sounds and find the one with this ID.
       for (var i=0; i<self._sounds.length; i++) {
@@ -2094,8 +2044,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Return an inactive sound from the pool or create a new one.
      * @return {SoundInstance} SoundInstance playback object.
      */
-    _inactiveSound: function() {
-      var self = this;
+    _inactiveSound() {
+      const self = this;
 
       self._drain();
 
@@ -2113,8 +2063,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     /**
      * Drain excess inactive sounds from the pool.
      */
-    _drain: function() {
-      var self = this;
+    _drain() {
+      const self = this;
       var limit = self._pool;
       var cnt = 0;
       var i = 0;
@@ -2155,8 +2105,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Number} id Only return one ID if one is passed.
      * @return {Array}    Array of IDs.
      */
-    _getSoundIds: function(id) {
-      var self = this;
+    _getSoundIds(id) {
+      const self = this;
 
       if (typeof id === 'undefined') {
         var ids = [];
@@ -2175,12 +2125,12 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {SoundInstance} sound The sound object to work with.
      * @return {Sound}
      */
-    _refreshBuffer: function(sound) {
-      var self = this;
+    _refreshBuffer(sound) {
+      const self = this;
 
       // Setup the buffer source for playback.
       sound._node.bufferSource = audio.ctx.createBufferSource();
-      sound._node.bufferSource.buffer = cache[self._src];
+      sound._node.bufferSource.buffer = cache.get(self._src);
 
       // Connect to the correct node.
       if (sound._panner) {
@@ -2205,9 +2155,9 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * @param  {Object} node SoundInstance's audio node containing the buffer source.
      * @return {Sound}
      */
-    _cleanBuffer: function(node) {
-      var self = this;
-      var isIOS = audio._navigator && audio._navigator.vendor.indexOf('Apple') >= 0;
+    _cleanBuffer(node) {
+      const self = this;
+      var isIOS = audio._navigator?.vendor?.includes('Apple');
 
       if (!node.bufferSource) {
         return self;
@@ -2226,14 +2176,11 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     },
 
     /**
-     * Set the source to a 0-second silence to stop any downloading (except in IE).
+     * Set the source to a 0-second silence to stop any downloading.
      * @param  {Object} node Audio node to clear.
      */
-    _clearSound: function(node) {
-      var checkIE = /MSIE |Trident\//.test(audio._navigator && audio._navigator.userAgent);
-      if (!checkIE) {
-        node.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-      }
+    _clearSound(node) {
+      node.src = SilentMedia;
     }
   };
 
@@ -2253,8 +2200,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Initialize a new SoundInstance object.
      * @return {SoundInstance}
      */
-    init: function() {
-      var self = this;
+    init() {
+      const self = this;
       var parent = self._parent;
 
       // Setup the default parameters.
@@ -2283,14 +2230,14 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Create and setup a new sound object, whether HTML5 Audio or Web Audio.
      * @return {SoundInstance}
      */
-    create: function() {
-      var self = this;
+    create() {
+      const self = this;
       var parent = self._parent;
       var volume = (audio._muted || self._muted || self._parent._muted) ? 0 : self._volume;
 
       if (parent._webAudio) {
         // Create the gain node for controlling volume (the source will connect to this).
-        self._node = (typeof audio.ctx.createGain === 'undefined') ? audio.ctx.createGainNode() : audio.ctx.createGain();
+        self._node = audio.ctx.createGain();
         self._node.gain.setValueAtTime(volume, audio.ctx.currentTime);
         self._node.paused = true;
         self._node.connect(audio.masterGain);
@@ -2327,8 +2274,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
      * Reset the parameters of this sound to the original state (for recycle).
      * @return {SoundInstance}
      */
-    reset: function() {
-      var self = this;
+    reset() {
+      const self = this;
       var parent = self._parent;
 
       // Reset all of the parameters of this sound.
@@ -2351,8 +2298,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     /**
      * HTML5 Audio error listener callback.
      */
-    _errorListener: function() {
-      var self = this;
+    _errorListener() {
+      const self = this;
 
       // Fire an error event and pass back the code.
       self._parent._emit('loaderror', self._id, self._node.error ? self._node.error.code : 0);
@@ -2364,8 +2311,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     /**
      * HTML5 Audio canplaythrough listener callback.
      */
-    _loadListener: function() {
-      var self = this;
+    _loadListener() {
+      const self = this;
       var parent = self._parent;
 
       // Round up the duration to account for the lower precision in HTML5 Audio.
@@ -2389,8 +2336,8 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     /**
      * HTML5 Audio ended listener callback.
      */
-    _endListener: function() {
-      var self = this;
+    _endListener() {
+      const self = this;
       var parent = self._parent;
 
       // Only handle the `ended`` event if the duration is Infinity.
@@ -2416,7 +2363,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
   /** Helper Methods **/
   /***************************************************************************/
 
-  var cache = {};
+  const cache = new Map();
 
   /**
    * Buffer a sound from URL, Data URI or cache and decode to audio source (Web Audio API).
@@ -2426,9 +2373,10 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     var url = self._src;
 
     // Check if the buffer has already been cached and use it instead.
-    if (cache[url]) {
+    const cached = cache.get(url);
+    if (cached) {
       // Set the duration from the cache.
-      self._duration = cache[url].duration;
+      self._duration = cached.duration;
 
       // Load the sound into this Sound.
       loadSound(self);
@@ -2478,7 +2426,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
           self._html5 = true;
           self._webAudio = false;
           self._sounds = [];
-          delete cache[url];
+          cache.delete(url);
           self.load();
         }
       };
@@ -2512,19 +2460,14 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     // Load the sound on success.
     var success = function(buffer) {
       if (buffer && self._sounds.length > 0) {
-        cache[self._src] = buffer;
+        cache.set(self._src, buffer);
         loadSound(self, buffer);
       } else {
         error();
       }
     };
 
-    // Decode the buffer into an audio source.
-    if (typeof Promise !== 'undefined' && audio.ctx.decodeAudioData.length === 1) {
-      audio.ctx.decodeAudioData(arraybuffer).then(success).catch(error);
-    } else {
-      audio.ctx.decodeAudioData(arraybuffer, success, error);
-    }
+    audio.ctx.decodeAudioData(arraybuffer).then(success, error);
   }
 
   /**
@@ -2560,39 +2503,16 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       return;
     }
 
-    // Check if we are using Web Audio and setup the AudioContext if we are.
     try {
-      if (typeof AudioContext !== 'undefined') {
-        audio.ctx = new AudioContext();
-      } else if (typeof webkitAudioContext !== 'undefined') {
-        audio.ctx = new webkitAudioContext();
-      } else {
-        audio.usingWebAudio = false;
-      }
-    } catch(e) {
-      audio.usingWebAudio = false;
+      audio.ctx = typeof AudioContext === 'undefined' ? null : new AudioContext();
+    } catch {
+      audio.ctx = null;
     }
-
-    // If the audio context creation still failed, set using web audio to false.
-    if (!audio.ctx) {
-      audio.usingWebAudio = false;
-    }
-
-    // Check if a webview is being used on iOS8 or earlier (rather than the browser).
-    // If it is, disable Web Audio as it causes crashing.
-    var iOS = (/iP(hone|od|ad)/.test(audio._navigator && audio._navigator.platform));
-    var appVersion = audio._navigator && audio._navigator.appVersion.match(/OS (\d+)_(\d+)_?(\d+)?/);
-    var version = appVersion ? parseInt(appVersion[1], 10) : null;
-    if (iOS && version && version < 9) {
-      var safari = /safari/.test(audio._navigator && audio._navigator.userAgent.toLowerCase());
-      if (audio._navigator && !safari) {
-        audio.usingWebAudio = false;
-      }
-    }
+    audio.usingWebAudio = Boolean(audio.ctx);
 
     // Create and expose the master GainNode when using Web Audio (useful for plugins or advanced usage).
     if (audio.usingWebAudio) {
-      audio.masterGain = (typeof audio.ctx.createGain === 'undefined') ? audio.ctx.createGainNode() : audio.ctx.createGain();
+      audio.masterGain = audio.ctx.createGain();
       audio.masterGain.gain.setValueAtTime(audio._muted ? 0 : audio._volume, audio.ctx.currentTime);
       audio.masterGain.connect(audio.ctx.destination);
     }
