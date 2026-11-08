@@ -8,12 +8,17 @@ import { chromium, webkit } from 'playwright';
 const scripts = new Map([
   ['/audio.js', await readFile(new URL('../dist/index.js', import.meta.url))],
   ['/music.js', await readFile(new URL('../dist/music.js', import.meta.url))],
+  ['/music-worker.js', await readFile(new URL('../dist/music-worker.js', import.meta.url))],
 ]);
+const aac = await readFile(new URL('./audio/loop.aac', import.meta.url));
 const audio = await readFile(new URL('./audio/sound1.wav', import.meta.url));
 const server = createServer((request, response) => {
   if (scripts.has(request.url)) {
     response.setHeader('Content-Type', 'application/javascript');
     response.end(scripts.get(request.url));
+  } else if (request.url === '/loop.aac') {
+    response.setHeader('Content-Type', 'audio/aac');
+    response.end(aac);
   } else if (request.url.startsWith('/sound.wav')) {
     const range = request.headers.range?.match(/^bytes=(\d+)-(\d*)$/);
     const start = range ? Number(range[1]) : 0;
@@ -240,3 +245,88 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     },
   );
 }
+
+test(
+  'webkit: AAC worker preserves both channels at the loop boundary',
+  { timeout: 15_000 },
+  async (test) => {
+    const browser = await webkit.launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto(url);
+      const supported = await page.evaluate(
+        async () =>
+          typeof AudioDecoder !== 'undefined' &&
+          (
+            await AudioDecoder.isConfigSupported({
+              codec: 'mp4a.40.2',
+              numberOfChannels: 2,
+              sampleRate: 48_000,
+            })
+          ).supported,
+      );
+      if (!supported) {
+        test.skip('AAC WebCodecs is unavailable.');
+        return;
+      }
+      const { frames, loopFrames, nativeDifference, repeatedDifference } = await page.evaluate(
+        async (compareNative) => {
+          const { createAdtsMusicSource } = await import('/music.js');
+          const abort = new AbortController();
+          const primingFrames = 2112;
+          const paddingFrames = 123;
+          const reader = await createAdtsMusicSource({
+            createWorker: () => new Worker('/music-worker.js', { type: 'module' }),
+            paddingFrames,
+            primingFrames,
+            src: '/loop.aac',
+          }).open(abort.signal);
+          try {
+            const loopFrames = Math.round(reader.duration * 48_000);
+            const firstLoop = [new Float32Array(loopFrames), new Float32Array(loopFrames)];
+            const encoded = await (await fetch('/loop.aac')).arrayBuffer();
+            const reference = compareNative
+              ? await new OfflineAudioContext(2, 1, 48_000).decodeAudioData(encoded)
+              : null;
+            let frames = 0;
+            let nativeDifference = 0;
+            let repeatedDifference = 0;
+            while (frames < loopFrames * 2) {
+              const block = await reader.read();
+              for (const [channel, samples] of block.entries()) {
+                const native = reference?.getChannelData(channel);
+                for (const [offset, sample] of samples.entries()) {
+                  const absoluteFrame = frames + offset;
+                  const frame = absoluteFrame % loopFrames;
+                  if (absoluteFrame < loopFrames) {
+                    firstLoop[channel][frame] = sample;
+                  } else {
+                    repeatedDifference = Math.max(
+                      repeatedDifference,
+                      Math.abs(sample - firstLoop[channel][frame]),
+                    );
+                  }
+                  if (native) {
+                    nativeDifference = Math.max(nativeDifference, Math.abs(sample - native[frame]));
+                  }
+                }
+              }
+              frames += block[0].length;
+            }
+            return { frames, loopFrames, nativeDifference, repeatedDifference };
+          } finally {
+            abort.abort();
+            reader.close();
+          }
+        },
+        process.platform === 'darwin',
+      );
+      assert.ok(loopFrames > 96_000);
+      assert.ok(frames >= loopFrames * 2);
+      assert.ok(repeatedDifference < 0.000001, `Loop difference: ${repeatedDifference}`);
+      assert.ok(nativeDifference < 0.000001, `Native waveform difference: ${nativeDifference}`);
+    } finally {
+      await browser.close();
+    }
+  },
+);

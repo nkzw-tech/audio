@@ -38,6 +38,48 @@ Call playback from a user gesture when starting audio for the first time. `audio
 
 Both ES modules and CommonJS are supported.
 
+## Buffered music
+
+Import `@nkzw/audio/music` to play long looping tracks with bounded decoded PCM. The default 30-second window holds about 11 MiB of stereo PCM at 48 kHz, plus the compressed track and small decoder buffers. Music shares the mixer's master gain and audio context with sound effects. The application chooses which tracks to buffer and when to crossfade or fall back.
+
+The included WebCodecs adapter reads 48 kHz stereo AAC-LC in ADTS. Provide the encoder's leading priming and, if applicable, trailing padding in frames. Use a module worker entry in your application so the bundler can emit its URL.
+
+```ts
+// music-worker.ts
+import '@nkzw/audio/music/worker';
+```
+
+```ts
+import { createAdtsMusicSource, createBufferedMusic } from '@nkzw/audio/music';
+
+const track = createBufferedMusic(
+  audio,
+  createAdtsMusicSource({
+    createWorker: () =>
+      new Worker(new URL('./music-worker.ts', import.meta.url), { type: 'module' }),
+    primingFrames: 2112, // Use the trim for your own encoder.
+    src: '/music.aac',
+  }),
+  {
+    onFailure() {
+      const seconds = track?.position() ?? 0;
+      startFallback(seconds);
+    },
+  },
+);
+
+if (track) {
+  track.fade(0, 1, 250);
+  playButton.addEventListener('click', () => track.play());
+} else {
+  playButton.addEventListener('click', () => startFallback(0));
+}
+```
+
+The scheduler returns `null` when Web Audio is unavailable or the output and source sample rates differ. Decoder, fetch, and underrun errors go through `onFailure`. Use `position()` to resume a fallback, and unload the buffered track once it is no longer needed. `pause()` keeps the bounded buffer for a quick resume, while `unload()` terminates the reader and releases the decoded blocks. Both buffered tracks and regular sounds expose a numeric `position()` in seconds.
+
+For another codec or asset layout, provide a `MusicSource` whose reader returns consecutive planar PCM blocks and wraps at the exact loop boundary. `duration` is the loop length in seconds. The scheduler reads one block at a time and passes an abort signal to the source.
+
 ## Development
 
 ```sh

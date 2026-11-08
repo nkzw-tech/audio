@@ -22,11 +22,19 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
     overrides: [{ env: { browser: true, node: true }, files: ['tests/*.mjs'] }],
   },
-  pack: {
-    dts: true,
-    entry: { index: 'src/index.ts', music: 'src/music/index.ts' },
-    format: ['esm', 'cjs'],
-    platform: 'neutral',
-  },
+  pack: [
+    {
+      dts: true,
+      entry: { index: 'src/index.ts', music: 'src/music/index.ts' },
+      format: ['esm', 'cjs'],
+      platform: 'neutral',
+    },
+    {
+      clean: false,
+      entry: { 'music-worker': 'src/music/adtsWorker.ts' },
+      format: 'esm',
+      platform: 'browser',
+    },
+  ],
   staged: { '*': 'vp check --fix' },
 });

@@ -48,6 +48,10 @@
         "types": "./dist/music.d.cts",
         "default": "./dist/music.cjs"
       }
+    },
+    "./music/worker": {
+      "types": "./dist/music-worker.d.ts",
+      "import": "./dist/music-worker.js"
     }
   },
   "scripts": {

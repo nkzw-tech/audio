@@ -1,5 +1,7 @@
 import type { Audio, AudioOutput } from '../index.ts';
 
+export { createAdtsMusicSource, type AdtsMusicOptions } from './adts.ts';
+
 const StartLeadTime = 0.025;
 const RefillInterval = 250;
 const ReadTimeout = 10_000;
