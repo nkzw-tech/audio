@@ -9,15 +9,7 @@
  *  MIT License
  */
 
-(function(api) {
-
-  'use strict';
-
-  var audio = api.Audio;
-  var Sound = api.Sound;
-  var AudioController = api.AudioController;
-  var SoundInstance = api.SoundInstance;
-
+export function installSpatial(audio, AudioController, Sound, SoundInstance) {
   // Setup default properties.
   AudioController.prototype._pos = [0, 0, 0];
   AudioController.prototype._orientation = [0, 0, -1, 0, 1, 0];
@@ -660,4 +652,4 @@
       sound._parent.pause(sound._id, true).play(sound._id, true);
     }
   };
-})(typeof global !== 'undefined' ? global.NkzwAudio : window.NkzwAudio);
+}

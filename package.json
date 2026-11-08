@@ -27,7 +27,11 @@
     "dist",
     "LICENSE.md"
   ],
-  "main": "dist/audio.cjs",
+  "type": "module",
+  "exports": {
+    "import": "./dist/index.js",
+    "require": "./dist/index.cjs"
+  },
   "scripts": {
     "build": "vp pack",
     "prepack": "vp pack",

@@ -28,27 +28,10 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
     overrides: [{ env: { browser: true, node: true }, files: ['tests/*.mjs'] }],
   },
-  pack: [
-    {
-      entry: { audio: 'src/index.js' },
-      format: 'cjs',
-      outExtensions: () => ({ js: '.cjs' }),
-      platform: 'neutral',
-    },
-    ...Object.entries({
-      audio: 'src/index.js',
-      'audio.core.min': 'src/audio.core.js',
-      'audio.min': 'src/index.js',
-      'audio.spatial.min': 'src/plugins/audio.spatial.js',
-    }).map(([name, entry]) => ({
-      clean: false,
-      entry: { [name]: entry },
-      format: 'iife' as const,
-      globalName: 'NkzwAudioBundle',
-      minify: name.endsWith('.min'),
-      outputOptions: { entryFileNames: '[name].js' },
-      platform: 'browser' as const,
-    })),
-  ],
+  pack: {
+    entry: { index: 'src/index.js' },
+    format: ['esm', 'cjs'],
+    platform: 'neutral',
+  },
   staged: { '*': 'vp check --fix' },
 });

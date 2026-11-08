@@ -7,9 +7,11 @@
  *  MIT License
  */
 
-const { Audio: controller, Sound } = (function() {
+import { installSpatial } from './plugins/audio.spatial.js';
 
-  'use strict';
+export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
+  const lifetime = new AbortController();
+  let disposePromise;
 
   /** Global Methods **/
   /***************************************************************************/
@@ -34,7 +36,7 @@ const { Audio: controller, Sound } = (function() {
 
       // Pool of unlocked HTML5 Audio objects.
       self._html5AudioPool = [];
-      self.html5PoolSize = 10;
+      self.html5PoolSize = html5PoolSize;
 
       // Internal properties.
       self._codecs = {};
@@ -48,7 +50,7 @@ const { Audio: controller, Sound } = (function() {
       self.masterGain = null;
       self.noAudio = false;
       self.usingWebAudio = true;
-      self.autoSuspend = true;
+      self.autoSuspend = autoSuspend;
       self.ctx = null;
 
       // Set to false to disable the auto audio unlocker.
@@ -324,7 +326,7 @@ const { Audio: controller, Sound } = (function() {
       // then check if the audio actually played to determine if
       // audio has now been unlocked on iOS, Android, etc.
       var locked = false;
-      var unlock = function(e) {
+      var unlock = function() {
         if (locked) {
           return;
         }
@@ -390,9 +392,7 @@ const { Audio: controller, Sound } = (function() {
         }
 
         // Calling resume() on a stack initiated by user gesture is what actually unlocks the audio on Android Chrome >= 55.
-        if (typeof self.ctx.resume === 'function') {
-          self.ctx.resume();
-        }
+        self.ctx.resume().catch(() => {});
 
         // Setup a timeout to check that we are unlocked on the next event loop.
         source.onended = function() {
@@ -402,10 +402,10 @@ const { Audio: controller, Sound } = (function() {
           self._audioUnlocked = true;
 
           // Remove the touch start listener.
-          document.removeEventListener('touchstart', unlock, true);
-          document.removeEventListener('touchend', unlock, true);
-          document.removeEventListener('click', unlock, true);
-          document.removeEventListener('keydown', unlock, true);
+          if (lifetime.signal.aborted) {
+            return;
+          }
+          self._removeUnlockListeners();
 
           // Let all sounds know that audio has been unlocked.
           for (var i=0; i<self._soundGroups.length; i++) {
@@ -414,11 +414,16 @@ const { Audio: controller, Sound } = (function() {
         };
       };
 
-      // Setup a touch start listener to attempt an unlock in.
-      document.addEventListener('touchstart', unlock, true);
-      document.addEventListener('touchend', unlock, true);
-      document.addEventListener('click', unlock, true);
-      document.addEventListener('keydown', unlock, true);
+      const events = ['touchstart', 'touchend', 'click', 'keydown'];
+      for (const event of events) {
+        document.addEventListener(event, unlock, true);
+      }
+      self._removeUnlockListeners = () => {
+        for (const event of events) {
+          document.removeEventListener(event, unlock, true);
+        }
+        self._removeUnlockListeners = null;
+      };
 
       return self;
     },
@@ -457,6 +462,9 @@ const { Audio: controller, Sound } = (function() {
     retainAudioContext: function() {
       var self = this;
       var released = false;
+      if (lifetime.signal.aborted) {
+        throw new Error('The audio instance has been disposed.');
+      }
       self._externalAudio = (self._externalAudio || 0) + 1;
       self._autoResume();
       return function() {
@@ -496,16 +504,20 @@ const { Audio: controller, Sound } = (function() {
       }
 
       // If no sound has played after 30 seconds, suspend the context.
+      const context = self.ctx;
       self._suspendTimer = setTimeout(function() {
-        if (!self.autoSuspend || self._externalAudio) {
+        self._suspendTimer = null;
+        if (self.ctx !== context || !self.autoSuspend || self._externalAudio) {
           return;
         }
 
-        self._suspendTimer = null;
         self.state = 'suspending';
 
         // Handle updating the state of the audio context after suspending.
         var handleSuspension = function() {
+          if (self.ctx !== context) {
+            return;
+          }
           self.state = 'suspended';
 
           if (self._resumeAfterSuspend) {
@@ -516,7 +528,7 @@ const { Audio: controller, Sound } = (function() {
 
         // Either the state gets suspended or it is interrupted.
         // Either way, we need to update the state to suspended.
-        self.ctx.suspend().then(handleSuspension, handleSuspension);
+        context.suspend().then(handleSuspension, handleSuspension);
       }, 30000);
 
       return self;
@@ -537,14 +549,18 @@ const { Audio: controller, Sound } = (function() {
         clearTimeout(self._suspendTimer);
         self._suspendTimer = null;
       } else if (self.state === 'suspended' || self.state === 'running' && self.ctx.state === 'interrupted') {
-        self.ctx.resume().then(function() {
+        const context = self.ctx;
+        context.resume().then(function() {
+          if (self.ctx !== context) {
+            return;
+          }
           self.state = 'running';
 
           // Emit to all Sounds that the audio has resumed.
           for (var i=0; i<self._soundGroups.length; i++) {
             self._soundGroups[i]._emit('resume');
           }
-        });
+        }, () => {});
 
         if (self._suspendTimer) {
           clearTimeout(self._suspendTimer);
@@ -588,10 +604,7 @@ const { Audio: controller, Sound } = (function() {
     init: function(o) {
       var self = this;
 
-      // If we don't have an AudioContext created yet, run the setup.
-      if (!audio.ctx) {
-        setupAudioContext();
-      }
+      prepareOutput();
 
       // Setup user-defined default properties.
       self._autoplay = o.autoplay || false;
@@ -638,11 +651,6 @@ const { Audio: controller, Sound } = (function() {
       // Web Audio or HTML5 Audio?
       self._webAudio = audio.usingWebAudio && !self._html5;
 
-      // Automatically try to enable audio.
-      if (typeof audio.ctx !== 'undefined' && audio.ctx && audio.autoUnlock) {
-        audio._unlockAudio();
-      }
-
       // Keep track of this Sound group in the global controller.
       audio._soundGroups.push(self);
 
@@ -673,7 +681,7 @@ const { Audio: controller, Sound } = (function() {
       var url = null;
 
       // If no audio is available, quit immediately.
-      if (audio.noAudio) {
+      if (audio.noAudio || lifetime.signal.aborted) {
         self._emit('loaderror', null, 'No audio support.');
         return;
       }
@@ -756,6 +764,9 @@ const { Audio: controller, Sound } = (function() {
     play: function(sprite, internal) {
       var self = this;
       var id = null;
+      if (lifetime.signal.aborted) {
+        return null;
+      }
 
       // Determine if a sprite, sound id or nothing was passed
       if (typeof sprite === 'number') {
@@ -2536,7 +2547,7 @@ const { Audio: controller, Sound } = (function() {
    */
   var setupAudioContext = function() {
     // If we have already detected that Web Audio isn't supported, don't run this step again.
-    if (!audio.usingWebAudio) {
+    if (lifetime.signal.aborted || !audio.usingWebAudio) {
       return;
     }
 
@@ -2581,33 +2592,93 @@ const { Audio: controller, Sound } = (function() {
     audio._setup();
   };
 
-  // Add support for AMD (Asynchronous Module Definition) libraries such as require.js.
-  if (typeof define === 'function' && define.amd) {
-    define([], function() {
-      return {
-        Audio: audio,
-        Sound: Sound
-      };
-    });
+  function prepareOutput() {
+    if (!audio.ctx) {
+      setupAudioContext();
+    }
+    if (audio.ctx && audio.autoUnlock && typeof document !== 'undefined') {
+      audio._unlockAudio();
+    }
   }
 
-  // Add support for AMD (Asynchronous Module Definition) libraries such as require.js.
-  if (typeof define === 'function' && define.amd) {
-    define([], function() {
-      return { Audio: audio, Sound: Sound };
-    });
-  }
-
-  var root = typeof global !== 'undefined' ? global : typeof window !== 'undefined' ? window : null;
-  if (root) {
-    root.NkzwAudio = {
-      Audio: audio,
-      Sound: Sound,
-      AudioController: AudioController,
-      SoundInstance: SoundInstance
+  function getOutput() {
+    prepareOutput();
+    if (!audio.usingWebAudio || !audio.ctx) {
+      return null;
+    }
+    return {
+      context: audio.ctx,
+      destination: audio.masterGain,
+      retain: audio.retainAudioContext.bind(audio),
+      signal: lifetime.signal,
     };
   }
-  return { Audio: audio, Sound: Sound };
-})();
 
-export { controller as Audio, Sound };
+  function dispose() {
+    if (!disposePromise) {
+      const context = audio.ctx;
+      disposePromise = Promise.resolve().then(() => {
+        if (context && context.state !== 'closed') {
+          return context.close();
+        }
+      });
+      lifetime.abort();
+      audio._removeUnlockListeners?.();
+      for (const sound of [...audio._soundGroups]) {
+        sound.unload();
+      }
+      clearTimeout(audio._suspendTimer);
+      audio._suspendTimer = null;
+      audio._html5AudioPool.length = 0;
+      audio._scratchBuffer = null;
+      audio.ctx = null;
+      audio.masterGain = null;
+      audio.usingWebAudio = false;
+    }
+    return disposePromise;
+  }
+
+  installSpatial(audio, AudioController, Sound, SoundInstance);
+
+  return {
+    codecs: audio.codecs.bind(audio),
+    dispose,
+    getOutput,
+    mute(muted) {
+      audio.mute(muted);
+    },
+    orientation(x, y, z, upX, upY, upZ) {
+      if (x === undefined) {
+        return [...audio._orientation];
+      }
+      audio.orientation(x, y, z, upX, upY, upZ);
+    },
+    pos(x, y, z) {
+      if (x === undefined) {
+        return [...audio._pos];
+      }
+      audio.pos(x, y, z);
+    },
+    sound(options) {
+      if (lifetime.signal.aborted) {
+        throw new Error('The audio instance has been disposed.');
+      }
+      if (!options.src?.length) {
+        throw new TypeError('At least one sound source is required.');
+      }
+      return new Sound(options);
+    },
+    stereo(pan) {
+      audio.stereo(pan);
+    },
+    stop() {
+      audio.stop();
+    },
+    volume(value) {
+      if (value === undefined) {
+        return audio._volume;
+      }
+      audio.volume(value);
+    },
+  };
+}
