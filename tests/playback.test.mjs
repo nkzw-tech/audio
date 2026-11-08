@@ -877,7 +877,10 @@ for (const [name, engine] of engines) {
           const { createAudio } = await import('/audio.js');
           const audio = createAudio({ autoSuspend: false });
           const { context } = audio.getOutput();
-          const sound = audio.sound({ sprite: { note: [100, 300] }, src: '/sound.wav' });
+          const sound = audio.sound({
+            sprite: { note: [100, 300, true], other: [400, 300] },
+            src: '/sound.wav',
+          });
           const resume = context.resume.bind(context);
           const pending = Promise.withResolvers();
           await context.suspend();
@@ -899,19 +902,24 @@ for (const [name, engine] of engines) {
           });
         });
         await page.waitForFunction(() => window.loopAudit.sound.state() === 'loaded');
-        await page.evaluate(() => {
+        const settings = await page.evaluate(() => {
           const { sound } = window.loopAudit;
           const voice = sound.play('note');
-          sound.loop(true, voice);
+          const other = sound.play('other');
+          const spriteDefault = sound.loop(voice);
+          sound.loop(false, voice);
+          sound.loop(true, other);
+          return [spriteDefault, sound.loop(voice), sound.loop(other), sound.loop()];
         });
         await page.getByRole('button').click();
-        await page.waitForFunction(() => window.loopAudit.loops.length === 1);
+        await page.waitForFunction(() => window.loopAudit.loops.length === 2);
         const loops = await page.evaluate(async () => {
           const { audio, loops } = window.loopAudit;
           await audio.dispose();
           return loops;
         });
-        assert.deepEqual(loops, [true]);
+        assert.deepEqual(settings, [true, false, true, false]);
+        assert.deepEqual(loops, [false, true]);
       } finally {
         await browser.close();
       }

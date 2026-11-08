@@ -295,6 +295,7 @@ export class PlaybackSound implements Sound {
     if (!voice) {
       voice = this.#takeVoice();
       voice.sprite = typeof spriteOrId === 'string' ? spriteOrId : '__default';
+      voice.loop ||= Boolean(this.#options.sprite?.[voice.sprite]?.[2]);
       voice.offset = this.#region(voice).start;
     }
     if (this.#state === 'unloaded') {
@@ -310,10 +311,10 @@ export class PlaybackSound implements Sound {
   #region(voice: PlaybackVoice): Region {
     const sprite = this.#options.sprite?.[voice.sprite];
     if (sprite) {
-      const [start, duration, loop] = sprite;
+      const [start, duration] = sprite;
       return {
         end: (start + duration) / 1000,
-        loop: voice.loop || Boolean(loop),
+        loop: voice.loop,
         start: start / 1000,
       };
     }
