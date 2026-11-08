@@ -463,3 +463,55 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     },
   );
 }
+
+for (const [name, engine] of Object.entries({ chromium, webkit })) {
+  test(
+    `${name}: keeps overlapping sound effects queued during context resume`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const timeout = window.setTimeout;
+          window.setTimeout = (callback, delay, ...args) =>
+            timeout(callback, delay === 30_000 ? 150 : delay, ...args);
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio({ html5PoolSize: 0 });
+          const { context } = audio.getOutput();
+          const resume = context.resume.bind(context);
+          const pending = Promise.withResolvers();
+          context.resume = () => pending.promise;
+          const voices = [];
+          const sound = audio.sound({
+            onplay: (id) => voices.push(id),
+            src: '/sound.wav',
+          });
+          window.overlap = { audio, context, sound, voices };
+          document.querySelector('button').addEventListener('click', () => {
+            const first = sound.play();
+            const second = sound.play();
+            sound.play(second);
+            window.overlap.expected = [first, second];
+            resume().then(pending.resolve, pending.reject);
+          });
+        });
+        await page.waitForFunction(
+          () =>
+            window.overlap.sound.state() === 'loaded' &&
+            window.overlap.context.state === 'suspended',
+        );
+        await page.getByRole('button').click();
+        await page.waitForFunction(() => window.overlap.voices.length >= 2);
+        const { expected, voices } = await page.evaluate(async () => {
+          await window.overlap.audio.dispose();
+          return { expected: window.overlap.expected, voices: window.overlap.voices };
+        });
+        assert.deepEqual(voices.toSorted(), expected.toSorted());
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}

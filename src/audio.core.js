@@ -925,8 +925,17 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
           self._playLock = true;
 
           // Wait for the audio context to resume before playing.
-          self.off('resume');
-          self.once('resume', playWebAudio);
+          if (sound._resume) {
+            self.off('resume', sound._resume);
+          }
+          const resume = () => {
+            if (sound._resume === resume) {
+              sound._resume = null;
+              playWebAudio();
+            }
+          };
+          sound._resume = resume;
+          self.once('resume', resume);
 
           // Cancel the end timer.
           self._clearTimer(sound._id);
@@ -2298,6 +2307,10 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       parent._clearTimer(this._id);
       clearInterval(this._interval);
       this._interval = null;
+      if (this._resume) {
+        parent.off('resume', this._resume);
+        this._resume = null;
+      }
       if (!node) {
         return;
       }
