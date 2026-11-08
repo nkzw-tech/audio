@@ -1000,7 +1000,17 @@ for (const [name, engine] of engines) {
           const blockFrames = sampleRate / 4;
           const pcm = [new Float32Array(blockFrames)];
           const delayed = Promise.withResolvers();
-          const report = { failures: 0, plays: 0, reads: 0, releases: 0 };
+          const report = { failures: 0, plays: 0, reads: 0, releases: 0, starts: 0 };
+          const createSource = context.createBufferSource.bind(context);
+          context.createBufferSource = () => {
+            const source = createSource();
+            const start = source.start.bind(source);
+            source.start = (...args) => {
+              start(...args);
+              report.starts++;
+            };
+            return source;
+          };
           let clock = 0;
           Object.defineProperty(context, 'currentTime', { get: () => clock });
           const timeout = window.setTimeout;
@@ -1048,7 +1058,10 @@ for (const [name, engine] of engines) {
           document.querySelector('button').addEventListener('click', () => track.play());
         });
         await page.getByRole('button').click();
-        await page.waitForFunction(() => window.musicAudit.report.reads === 2);
+        await page.waitForFunction(() => {
+          const { reads, starts } = window.musicAudit.report;
+          return reads === 2 && starts === 1;
+        });
         await page.evaluate(() => window.musicAudit.missDeadline());
         await page.waitForFunction(() => window.musicAudit.report.failures === 1);
         const result = await page.evaluate(async () => {
@@ -1063,6 +1076,7 @@ for (const [name, engine] of engines) {
           position: 0.25,
           reads: 2,
           releases: 1,
+          starts: 1,
         });
       } finally {
         await browser.close();
