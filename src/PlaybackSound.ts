@@ -350,7 +350,7 @@ export class PlaybackSound implements Sound {
         voice.cancelStart = undefined;
         if (!this.#disposed && voice.state === 'queued') {
           try {
-            voice.startWebAudio(buffer, region, offset, ended);
+            voice.startWebAudio(buffer, this.#region(voice), offset, ended);
             queueMicrotask(started);
           } catch (error) {
             voice.finishWebAudio();
@@ -470,7 +470,9 @@ export class PlaybackSound implements Sound {
     }
     for (const voice of this.#select(id)) {
       voice.loop = value;
-      if (voice.state === 'playing') {
+      if (voice.state === 'queued') {
+        voice.region = this.#region(voice);
+      } else if (voice.state === 'playing') {
         voice.pause();
         voice.state = 'queued';
         this.#start(voice, true);

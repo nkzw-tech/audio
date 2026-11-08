@@ -813,3 +813,58 @@ for (const [name, engine] of engines) {
     },
   );
 }
+
+for (const [name, engine] of engines) {
+  test(
+    `${name}: applies loop changes before a queued voice starts`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio({ autoSuspend: false });
+          const { context } = audio.getOutput();
+          const sound = audio.sound({ sprite: { note: [100, 300] }, src: '/sound.wav' });
+          const resume = context.resume.bind(context);
+          const pending = Promise.withResolvers();
+          await context.suspend();
+          context.resume = () => pending.promise;
+          const loops = [];
+          const createSource = context.createBufferSource.bind(context);
+          context.createBufferSource = () => {
+            const source = createSource();
+            const start = source.start.bind(source);
+            source.start = (...args) => {
+              loops.push(source.loop);
+              start(...args);
+            };
+            return source;
+          };
+          window.loopAudit = { audio, loops, sound };
+          document.querySelector('button').addEventListener('click', () => {
+            resume().then(pending.resolve, pending.reject);
+          });
+        });
+        await page.waitForFunction(() => window.loopAudit.sound.state() === 'loaded');
+        await page.evaluate(() => {
+          const { sound } = window.loopAudit;
+          const voice = sound.play('note');
+          sound.loop(true, voice);
+        });
+        await page.getByRole('button').click();
+        await page.waitForFunction(() => window.loopAudit.loops.length === 1);
+        const loops = await page.evaluate(async () => {
+          const { audio, loops } = window.loopAudit;
+          await audio.dispose();
+          return loops;
+        });
+        assert.deepEqual(loops, [true]);
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}
