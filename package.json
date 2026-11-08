@@ -23,21 +23,19 @@
     "url": "https://github.com/nkzw-tech/audio"
   },
   "scripts": {
-    "build": "VERSION=`printf 'v' && node -e 'console.log(require(\"./package.json\").version)'` && sed -i '' '2s|.*| *  @nkzw/audio '\"$VERSION\"'|' src/audio.core.js && sed -i '' '4s|.*| *  @nkzw/audio '\"$VERSION\"'|' src/plugins/audio.spatial.js && uglifyjs --preamble \"/*! @nkzw/audio $VERSION | (c) 2013-2020, James Simpson of GoldFire Studios | MIT License */\" src/audio.core.js -c -m --screw-ie8 -o dist/audio.core.min.js && uglifyjs --preamble \"/*! @nkzw/audio $VERSION | Spatial Plugin | (c) 2013-2020, James Simpson of GoldFire Studios | MIT License */\" src/plugins/audio.spatial.js -c -m --screw-ie8 -o dist/audio.spatial.min.js && awk 'FNR==1{echo \"\"}1' dist/audio.core.min.js dist/audio.spatial.min.js | sed '3s~.*~/*! Spatial Plugin */~' | perl -pe 'chomp if eof' > dist/audio.min.js && awk '(NR>1 && FNR==1){printf (\"\\n\\n\")};1' src/audio.core.js src/plugins/audio.spatial.js > dist/audio.js",
-    "test": "node --test tests/*.test.mjs"
+    "build": "vp pack",
+    "test": "vp pack && node --test tests/*.test.mjs",
+    "prepack": "vp pack"
   },
   "devDependencies": {
     "playwright": "^1.65.0",
-    "uglify-js": "2.x"
+    "vite-plus": "1.5.0"
   },
-  "main": "dist/audio.js",
+  "main": "dist/audio.cjs",
   "license": "MIT",
   "files": [
-    "src",
-    "dist/audio.js",
-    "dist/audio.min.js",
-    "dist/audio.core.min.js",
-    "dist/audio.spatial.min.js",
+    "dist",
     "LICENSE.md"
-  ]
+  ],
+  "packageManager": "pnpm@12.18.0"
 }

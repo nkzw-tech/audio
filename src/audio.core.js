@@ -7,7 +7,7 @@
  *  MIT License
  */
 
-(function() {
+const { Audio: controller, Sound } = (function() {
 
   'use strict';
 
@@ -2591,10 +2591,11 @@
     });
   }
 
-  // Add support for CommonJS libraries such as browserify.
-  if (typeof exports !== 'undefined') {
-    exports.Audio = audio;
-    exports.Sound = Sound;
+  // Add support for AMD (Asynchronous Module Definition) libraries such as require.js.
+  if (typeof define === 'function' && define.amd) {
+    define([], function() {
+      return { Audio: audio, Sound: Sound };
+    });
   }
 
   var root = typeof global !== 'undefined' ? global : typeof window !== 'undefined' ? window : null;
@@ -2606,4 +2607,7 @@
       SoundInstance: SoundInstance
     };
   }
+  return { Audio: audio, Sound: Sound };
 })();
+
+export { controller as Audio, Sound };
