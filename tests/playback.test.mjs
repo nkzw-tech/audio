@@ -3,7 +3,13 @@ import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
-import { chromium, webkit } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
+
+const engines = Object.entries(
+  process.platform !== 'darwin' || process.env.NKZW_AUDIO_TEST_FIREFOX === '1'
+    ? { chromium, firefox, webkit }
+    : { chromium, webkit },
+);
 
 const scripts = new Map([
   ['/audio.js', await readFile(new URL('../dist/index.js', import.meta.url))],
@@ -41,7 +47,7 @@ await once(server, 'listening');
 const url = `http://127.0.0.1:${server.address().port}`;
 test.after(() => server.close());
 
-for (const [name, engine] of Object.entries({ chromium, webkit })) {
+for (const [name, engine] of engines) {
   test(
     `${name}: plays Web Audio and HTML media from one gesture`,
     { timeout: 15_000 },
@@ -95,7 +101,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
   );
 }
 
-for (const [name, engine] of Object.entries({ chromium, webkit })) {
+for (const [name, engine] of engines) {
   test(`${name}: isolates contexts, output leases, and disposal`, { timeout: 15_000 }, async () => {
     const browser = await engine.launch();
     try {
@@ -144,7 +150,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
   });
 }
 
-for (const [name, engine] of Object.entries({ chromium, webkit })) {
+for (const [name, engine] of engines) {
   test(
     `${name}: buffers music on the audio clock and releases it on disposal`,
     { timeout: 15_000 },
@@ -331,7 +337,7 @@ test(
   },
 );
 
-for (const [name, engine] of Object.entries({ chromium, webkit })) {
+for (const [name, engine] of engines) {
   test(
     `${name}: a gesture unlocks once and external playback prevents idle suspension`,
     { timeout: 15_000 },
@@ -464,7 +470,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
   );
 }
 
-for (const [name, engine] of Object.entries({ chromium, webkit })) {
+for (const [name, engine] of engines) {
   test(
     `${name}: keeps overlapping sound effects queued during context resume`,
     { timeout: 15_000 },

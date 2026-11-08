@@ -84,7 +84,7 @@ For another codec or asset layout, provide a `MusicSource` whose reader returns 
 
 ```sh
 vp install
-vp exec playwright install chromium webkit
+vp exec playwright install chromium firefox webkit
 vp check
 vp run test
 ```

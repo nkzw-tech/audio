@@ -10,10 +10,13 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     timeout-minutes: 20
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.os }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -32,8 +35,13 @@ jobs:
       - name: Run check
         run: vp check
 
-      - name: Install browsers
-        run: vp exec playwright install --with-deps chromium webkit
+      - name: Install browsers on Linux
+        if: runner.os == 'Linux'
+        run: vp exec playwright install --with-deps chromium firefox webkit
+
+      - name: Install browsers on macOS
+        if: runner.os == 'macOS'
+        run: vp exec playwright install chromium webkit
 
       - name: Run tests
         run: vp run test
