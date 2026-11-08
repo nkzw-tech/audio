@@ -28,7 +28,7 @@ export type VoiceOptions = {
 type MediaEvents = {
   end(): void;
   error(error: unknown): void;
-  load(duration: number): void;
+  load(duration: number, ready: boolean): void;
 };
 
 export class PlaybackVoice {
@@ -110,7 +110,7 @@ export class PlaybackVoice {
     }
   }
 
-  connectMedia(src: string, preload: 'auto' | 'metadata' | 'none', events: MediaEvents) {
+  connectMedia(src: string, preload: 'auto' | 'metadata', events: MediaEvents) {
     if (!this.media) {
       const media = this.mixer.takeMedia();
       const controller = new AbortController();
@@ -118,8 +118,12 @@ export class PlaybackVoice {
       this.#mediaEvents = controller;
       this.media = media;
       media.preload = preload;
-      media.addEventListener('loadedmetadata', () => events.load(media.duration), { signal });
-      media.addEventListener('durationchange', () => events.load(media.duration), { signal });
+      const minimumReadyState =
+        preload === 'metadata' ? media.HAVE_METADATA : media.HAVE_FUTURE_DATA;
+      const update = () => events.load(media.duration, media.readyState >= minimumReadyState);
+      for (const event of ['canplay', 'durationchange', 'loadedmetadata']) {
+        media.addEventListener(event, update, { signal });
+      }
       media.addEventListener('error', () => events.error(media.error?.code ?? 0), { signal });
       media.addEventListener('ended', events.end, { signal });
       this.applyVolume();

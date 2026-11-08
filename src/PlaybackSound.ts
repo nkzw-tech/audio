@@ -128,24 +128,19 @@ export class PlaybackSound implements Sound {
     if (this.#output) {
       voice.connectWebAudio(this.#output);
     } else if (this.#src && this.mixer.canUseMedia) {
-      const preload = this.#options.preload;
-      voice.connectMedia(
-        this.#src,
-        preload === false ? 'none' : preload === 'metadata' ? preload : 'auto',
-        {
-          end: () => this.#end(voice),
-          error: (error) => {
-            if (this.#state === 'loading') {
-              this.#loadFailed(error, voice.id);
-            }
-          },
-          load: (duration) => {
-            if (!Number.isNaN(duration)) {
-              this.#loaded(duration);
-            }
-          },
+      voice.connectMedia(this.#src, this.#options.preload === 'metadata' ? 'metadata' : 'auto', {
+        end: () => this.#end(voice),
+        error: (error) => {
+          if (this.#state === 'loading') {
+            this.#loadFailed(error, voice.id);
+          }
         },
-      );
+        load: (duration, ready) => {
+          if (!Number.isNaN(duration)) {
+            this.#loaded(duration, ready);
+          }
+        },
+      });
     }
   }
 
@@ -243,10 +238,10 @@ export class PlaybackSound implements Sound {
     this.#emit('loaderror', id, error);
   }
 
-  #loaded(duration: number) {
+  #loaded(duration: number, ready = true) {
     if (!this.#disposed) {
       this.#duration = duration;
-      if (this.#state === 'loading') {
+      if (ready && this.#state === 'loading') {
         this.#state = 'loaded';
         this.#emit('load');
         for (const fade of this.#deferredFades.splice(0)) {

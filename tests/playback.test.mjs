@@ -35,7 +35,15 @@ const server = createServer((request, response) => {
       'Content-Type': 'audio/wav',
       ...(range ? { 'Content-Range': `bytes ${start}-${end}/${audio.length}` } : {}),
     });
-    response.end(request.method === 'HEAD' ? undefined : audio.subarray(start, end + 1));
+    if (request.method === 'HEAD') {
+      response.end();
+    } else if (request.url.startsWith('/sound.wav?slow') && end - start >= 8192) {
+      response.write(audio.subarray(start, start + 8192));
+      const rest = setTimeout(() => response.end(audio.subarray(start + 8192, end + 1)), 350);
+      response.once('close', () => clearTimeout(rest));
+    } else {
+      response.end(audio.subarray(start, end + 1));
+    }
   } else {
     response.setHeader('Content-Type', 'text/html');
     response.end('<!doctype html><button>Play</button>');
@@ -96,6 +104,53 @@ test(
     }
   },
 );
+
+for (const [name, engine] of engines) {
+  test(
+    `${name}: reports a preloaded HTML sound as loaded when it can play`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        const ready = await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const mixer = createAudio({ html5PoolSize: 0 });
+          const load = HTMLMediaElement.prototype.load;
+          let media;
+          HTMLMediaElement.prototype.load = function () {
+            if (this.src.includes('?slow=')) {
+              media = this;
+            }
+            return load.call(this);
+          };
+          const ready = [];
+          for (const preload of [true, false]) {
+            const result = Promise.withResolvers();
+            const sound = mixer.sound({
+              html5: true,
+              onload: () => result.resolve(media.readyState >= media.HAVE_FUTURE_DATA),
+              onloaderror: (_, error) => result.reject(error),
+              preload,
+              src: '/sound.wav?slow=' + preload,
+            });
+            if (!preload) {
+              sound.load();
+            }
+            ready.push(await result.promise);
+            sound.unload();
+          }
+          await mixer.dispose();
+          return ready;
+        });
+        assert.deepEqual(ready, [true, true]);
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}
 
 for (const [name, engine] of engines) {
   test(
