@@ -47,6 +47,56 @@ await once(server, 'listening');
 const url = `http://127.0.0.1:${server.address().port}`;
 test.after(() => server.close());
 
+test(
+  'webkit: plays HTML media first created after the activation gesture expires',
+  { timeout: 20_000 },
+  async () => {
+    const browser = await webkit.launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto(url);
+      await page.evaluate(async () => {
+        const { createAudio } = await import('/audio.js');
+        const mixer = createAudio({ autoSuspend: false, html5PoolSize: 1 });
+        const webAudio = mixer.sound({ src: '/sound.wav' });
+        await new Promise((resolve) => {
+          if (webAudio.state() === 'loaded') {
+            resolve();
+          } else {
+            webAudio.once('load', resolve);
+          }
+        });
+        document.querySelector('button').addEventListener(
+          'click',
+          async () => {
+            await mixer.getOutput().context.resume();
+            setTimeout(() => {
+              const active = navigator.userActivation.isActive;
+              const media = mixer.sound({ html5: true, src: '/sound.wav?media' });
+              media.once('loaderror', (_, error) => {
+                window.playback = { active, result: String(error) };
+              });
+              media.once('playerror', (_, error) => {
+                window.playback = { active, result: String(error) };
+              });
+              media.once('play', (id) => {
+                window.playback = { active, result: media.playing(id) };
+              });
+              media.play();
+            }, 7000);
+          },
+          { once: true },
+        );
+      });
+      await page.getByRole('button').click();
+      await page.waitForFunction(() => window.playback);
+      assert.deepEqual(await page.evaluate(() => window.playback), { active: false, result: true });
+    } finally {
+      await browser.close();
+    }
+  },
+);
+
 for (const [name, engine] of engines) {
   test(
     `${name}: plays Web Audio and HTML media from one gesture`,

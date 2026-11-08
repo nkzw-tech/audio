@@ -51,7 +51,6 @@ export class AudioMixer implements Audio {
   #position: Vector = [0, 0, 0];
   #orientation: Orientation = [0, 0, -1, 0, 1, 0];
   #activated = false;
-  #mediaUsed = false;
   #mediaPrepared = false;
   #leases = 0;
   #idle: ReturnType<typeof setTimeout> | undefined;
@@ -266,7 +265,6 @@ export class AudioMixer implements Audio {
   }
 
   takeMedia() {
-    this.#mediaUsed = true;
     const media = this.#mediaPool.pop() ?? new globalThis.Audio();
     if (globalThis.navigator?.userActivation?.isActive) {
       this.#prepareMedia();
@@ -282,7 +280,7 @@ export class AudioMixer implements Audio {
   }
 
   #prepareMedia() {
-    if (this.#mediaUsed && !this.#mediaPrepared) {
+    if (!this.#mediaPrepared && this.canUseMedia) {
       this.#mediaPrepared = true;
       for (const sound of this.#sounds) {
         sound.prepareMedia();
