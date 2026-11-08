@@ -609,6 +609,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
 
       // Setup all other default properties.
       self._duration = 0;
+      self._disposed = false;
       self._state = 'unloaded';
       self._sounds = [];
       self._endTimers = {};
@@ -663,8 +664,12 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       const self = this;
       var url = null;
 
+      if (self._disposed || self._state !== 'unloaded') {
+        return self;
+      }
+
       // If no audio is available, quit immediately.
-      if (audio.noAudio || lifetime.signal.aborted) {
+      if (audio.noAudio) {
         self._emit('loaderror', null, 'No audio support.');
         return;
       }
@@ -727,8 +732,9 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
         self._webAudio = false;
       }
 
-      // Create a new sound object and add it to the pool.
-      new SoundInstance(self);
+      if (self._sounds.length === 0) {
+        new SoundInstance(self);
+      }
 
       // Load and decode the audio data for playback.
       if (self._webAudio) {
@@ -747,7 +753,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     play(sprite, internal) {
       const self = this;
       var id = null;
-      if (lifetime.signal.aborted) {
+      if (self._disposed) {
         return null;
       }
 
@@ -979,18 +985,17 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
           self._playLock = true;
           self._state = 'loading';
 
-          var listener = function() {
-            node.removeEventListener(audio._canPlayEvent, listener, false);
-            if (!sound._node) {
-              return;
+          if (sound._readyFn) {
+            node.removeEventListener(audio._canPlayEvent, sound._readyFn);
+          }
+          sound._readyFn = () => {
+            sound._readyFn = null;
+            if (sound._node === node) {
+              self._state = 'loaded';
+              playHtml5();
             }
-            self._state = 'loaded';
-            
-            // Begin playback.
-            playHtml5();
-
           };
-          node.addEventListener(audio._canPlayEvent, listener, false);
+          node.addEventListener(audio._canPlayEvent, sound._readyFn, { once: true });
 
           // Cancel the end timer.
           self._clearTimer(sound._id);
@@ -1743,60 +1748,32 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
     unload() {
       const self = this;
 
-      // Stop playing any active sounds.
-      var sounds = self._sounds;
-      for (var i=0; i<sounds.length; i++) {
-        // Stop the sound if it is currently playing.
-        if (!sounds[i]._paused) {
-          self.stop(sounds[i]._id);
-        }
-
-        // Remove the source or disconnect.
-        if (!self._webAudio) {
-          // Set the source to 0-second silence to stop any downloading.
-          self._clearSound(sounds[i]._node);
-
-          // Remove any event listeners.
-          sounds[i]._node.removeEventListener('error', sounds[i]._errorFn, false);
-          sounds[i]._node.removeEventListener(audio._canPlayEvent, sounds[i]._loadFn, false);
-          sounds[i]._node.removeEventListener('ended', sounds[i]._endFn, false);
-
-          // Release the Audio object back to the pool.
-          audio._releaseHtml5Audio(sounds[i]._node);
-        }
-
-        // Empty out all of the nodes.
-        delete sounds[i]._node;
-
-        // Make sure all timers are cleared out.
-        self._clearTimer(sounds[i]._id);
+      if (self._disposed) {
+        return null;
       }
 
-      // Remove the references in the global audio object.
-      var index = audio._soundGroups.indexOf(self);
+      self._disposed = true;
+      self._state = 'unloaded';
+      self._cancelRequest?.();
+      self._queue.length = 0;
+      self.off();
+      for (const sound of self._sounds) {
+        sound.destroy();
+      }
+      self._sounds.length = 0;
+
+      const index = audio._soundGroups.indexOf(self);
       if (index >= 0) {
         audio._soundGroups.splice(index, 1);
       }
 
-      // Delete this sound from the cache (if no other Sound is using it).
-      var remCache = true;
-      for (i=0; i<audio._soundGroups.length; i++) {
-        if (audio._soundGroups[i]._src === self._src || self._src.indexOf(audio._soundGroups[i]._src) >= 0) {
-          remCache = false;
-          break;
-        }
+      const src = self._src;
+      if (typeof src === 'string' && !audio._soundGroups.some((group) =>
+        group._src === src || Array.isArray(group._src) && group._src.includes(src)
+      )) {
+        cache.delete(src);
       }
-
-      if (remCache) {
-        cache.delete(self._src);
-      }
-
-      // Clear global errors.
-      audio.noAudio = false;
-
-      // Clear out `self`.
-      self._state = 'unloaded';
-      self._sounds = [];
+      audio._autoSuspend();
 
       return null;
     },
@@ -1894,9 +1871,12 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       for (var i=events.length-1; i>=0; i--) {
         // Only fire the listener if the correct ID is used.
         if (!events[i].id || events[i].id === id || event === 'load') {
-          setTimeout(function(fn) {
-            fn.call(this, id, msg);
-          }.bind(self, events[i].fn), 0);
+          const { fn } = events[i];
+          setTimeout(() => {
+            if (!self._disposed) {
+              fn.call(self, id, msg);
+            }
+          }, 0);
 
           // If this event was setup with `once`, remove it.
           if (events[i].once) {
@@ -1948,7 +1928,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       var sprite = sound._sprite;
 
       if (!self._webAudio && sound._node && !sound._node.paused && !sound._node.ended && sound._node.currentTime < sound._stop) {
-        setTimeout(self._ended.bind(self, sound), 100);
+        self._endTimers[sound._id] = setTimeout(() => self._ended(sound), 100);
         return self;
       }
 
@@ -2088,10 +2068,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
         }
 
         if (self._sounds[i]._ended) {
-          // Disconnect the audio source when using Web Audio.
-          if (self._webAudio && self._sounds[i]._node) {
-            self._sounds[i]._node.disconnect(0);
-          }
+          self._sounds[i].destroy();
 
           // Remove sounds until we have the pool size.
           self._sounds.splice(i, 1);
@@ -2163,12 +2140,10 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
         return self;
       }
 
-      if (audio._scratchBuffer && node.bufferSource) {
-        node.bufferSource.onended = null;
-        node.bufferSource.disconnect(0);
-        if (isIOS) {
-          try { node.bufferSource.buffer = audio._scratchBuffer; } catch(e) {}
-        }
+      node.bufferSource.onended = null;
+      node.bufferSource.disconnect();
+      if (isIOS && audio._scratchBuffer) {
+        try { node.bufferSource.buffer = audio._scratchBuffer; } catch {}
       }
       node.bufferSource = null;
 
@@ -2268,6 +2243,34 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       }
 
       return self;
+    },
+
+    destroy() {
+      const { _node: node, _parent: parent } = this;
+      parent._clearTimer(this._id);
+      clearInterval(this._interval);
+      this._interval = null;
+      if (!node) {
+        return;
+      }
+
+      if (parent._webAudio) {
+        node.bufferSource?.stop();
+        parent._cleanBuffer(node);
+        this._panner?.disconnect();
+        this._panner = null;
+        node.disconnect();
+      } else {
+        node.removeEventListener('error', this._errorFn);
+        node.removeEventListener(audio._canPlayEvent, this._loadFn);
+        node.removeEventListener(audio._canPlayEvent, this._readyFn);
+        node.removeEventListener('ended', this._endFn);
+        this._readyFn = null;
+        node.pause();
+        parent._clearSound(node);
+        audio._releaseHtml5Audio(node);
+      }
+      this._node = null;
     },
 
     /**
@@ -2407,27 +2410,34 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
         });
       }
 
-      xhr.onload = function() {
-        if (self._state === 'unloaded') {
-          return;
-        }
-        // Make sure we get a successful response back.
-        var code = (xhr.status + '')[0];
+      const clearRequest = () => {
+        self._cancelRequest = null;
+        xhr.onload = xhr.onerror = null;
+      };
+      self._cancelRequest = () => {
+        clearRequest();
+        xhr.abort();
+      };
+
+      xhr.onload = () => {
+        clearRequest();
+        const code = String(xhr.status)[0];
         if (code !== '0' && code !== '2' && code !== '3') {
+          self._state = 'unloaded';
           self._emit('loaderror', null, 'Failed loading audio file with status: ' + xhr.status + '.');
           return;
         }
-
         decodeAudioData(xhr.response, self);
       };
-      xhr.onerror = function() {
-        // If there is an error, switch to HTML5 Audio.
-        if (self._webAudio && self._state !== 'unloaded') {
-          self._html5 = true;
-          self._webAudio = false;
-          self._sounds = [];
-          cache.delete(url);
-          self.load();
+      xhr.onerror = () => {
+        clearRequest();
+        for (const sound of self._sounds) {
+          sound.destroy();
+        }
+        self._html5 = true;
+        self._webAudio = false;
+        for (const sound of self._sounds) {
+          sound.create();
         }
       };
       safeXhrSend(xhr);
@@ -2452,22 +2462,17 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
    * @param  {Sound}        self
    */
   var decodeAudioData = function(arraybuffer, self) {
-    // Fire a load error if something broke.
-    var error = function() {
-      self._emit('loaderror', null, 'Decoding audio data failed.');
-    };
-
-    // Load the sound on success.
-    var success = function(buffer) {
-      if (buffer && self._sounds.length > 0) {
+    audio.ctx.decodeAudioData(arraybuffer).then((buffer) => {
+      if (!self._disposed) {
         cache.set(self._src, buffer);
         loadSound(self, buffer);
-      } else {
-        error();
       }
-    };
-
-    audio.ctx.decodeAudioData(arraybuffer).then(success, error);
+    }, () => {
+      if (!self._disposed) {
+        self._state = 'unloaded';
+        self._emit('loaderror', null, 'Decoding audio data failed.');
+      }
+    });
   }
 
   /**
@@ -2559,6 +2564,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       clearTimeout(audio._suspendTimer);
       audio._suspendTimer = null;
       audio._html5AudioPool.length = 0;
+      cache.clear();
       audio._scratchBuffer = null;
       audio.ctx = null;
       audio.masterGain = null;
