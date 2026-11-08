@@ -1039,7 +1039,7 @@ for (const [name, engine] of engines) {
           window.musicAudit = {
             audio,
             missDeadline() {
-              clock = 0.31 + 0.5 / sampleRate;
+              clock = 0.56 + 0.5 / sampleRate;
               delayed.resolve(pcm);
             },
             report,

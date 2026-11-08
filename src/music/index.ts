@@ -181,15 +181,13 @@ class BufferedMusic {
   }
 
   private currentFrame() {
-    return this.anchor == null
-      ? this.frame
-      : Math.min(
-          this.decodedThrough,
-          Math.max(
-            this.frame,
-            Math.floor((this.context.currentTime - this.anchor) * this.source.sampleRate),
-          ),
-        );
+    if (this.anchor == null) {
+      return this.frame;
+    }
+    const scheduledThrough =
+      this.blocks.find(({ source }) => !source)?.frame ?? this.decodedThrough;
+    const elapsed = Math.floor((this.context.currentTime - this.anchor) * this.source.sampleRate);
+    return Math.max(this.frame, Math.min(scheduledThrough, elapsed));
   }
 
   private stopBlock(block: Block) {
@@ -255,8 +253,8 @@ class BufferedMusic {
       this.failed = true;
       const unscheduled = this.blocks.findIndex(({ source }) => !source);
       if (unscheduled >= 0) {
-        this.decodedThrough = this.anchor == null ? this.frame : this.blocks[unscheduled].frame;
-        this.frame = Math.min(this.frame, this.decodedThrough);
+        this.decodedThrough =
+          this.anchor == null ? this.frame : Math.max(this.frame, this.blocks[unscheduled].frame);
         this.blocks.length = unscheduled;
       }
       this.reads.abort();
