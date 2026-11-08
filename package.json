@@ -59,6 +59,7 @@
   },
   "scripts": {
     "build": "vp pack",
+    "dev": "vp pack && vp dev --open /examples/",
     "prepack": "vp pack 1>&2",
     "prepare": "vp config",
     "test": "vp pack && node --test tests/*.test.mjs"

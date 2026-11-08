@@ -28,6 +28,7 @@ export default defineConfig({
           'unicorn/consistent-function-scoping': 'off',
         },
       },
+      { env: { browser: true }, files: ['examples/**/*.js', 'tests/js/*.js'] },
       { env: { browser: true, node: true }, files: ['tests/*.mjs'] },
     ],
   },

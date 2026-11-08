@@ -80,6 +80,10 @@ The scheduler returns `null` when Web Audio is unavailable or the output and sou
 
 For another codec or asset layout, provide a `MusicSource` whose reader returns consecutive planar PCM blocks and wraps at the exact loop boundary. `duration` is the loop length in seconds. The scheduler reads one block at a time and passes an abort signal to the source.
 
+## Examples
+
+Run `vp run dev` from the repository root to build the package and open the [examples](./examples/). The index also links to the manual Web Audio, HTML media, and spatial playback tests.
+
 ## Development
 
 ```sh
