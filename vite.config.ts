@@ -24,7 +24,7 @@ export default defineConfig({
   },
   pack: {
     dts: true,
-    entry: { index: 'src/index.ts' },
+    entry: { index: 'src/index.ts', music: 'src/music/index.ts' },
     format: ['esm', 'cjs'],
     platform: 'neutral',
   },

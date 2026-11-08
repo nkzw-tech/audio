@@ -38,6 +38,16 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./music": {
+      "import": {
+        "types": "./dist/music.d.ts",
+        "default": "./dist/music.js"
+      },
+      "require": {
+        "types": "./dist/music.d.cts",
+        "default": "./dist/music.cjs"
+      }
     }
   },
   "scripts": {

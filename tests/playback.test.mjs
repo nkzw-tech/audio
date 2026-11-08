@@ -5,12 +5,15 @@ import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { chromium, webkit } from 'playwright';
 
-const bundle = await readFile(new URL('../dist/index.js', import.meta.url));
+const scripts = new Map([
+  ['/audio.js', await readFile(new URL('../dist/index.js', import.meta.url))],
+  ['/music.js', await readFile(new URL('../dist/music.js', import.meta.url))],
+]);
 const audio = await readFile(new URL('./audio/sound1.wav', import.meta.url));
 const server = createServer((request, response) => {
-  if (request.url === '/audio.js') {
+  if (scripts.has(request.url)) {
     response.setHeader('Content-Type', 'application/javascript');
-    response.end(bundle);
+    response.end(scripts.get(request.url));
   } else if (request.url.startsWith('/sound.wav')) {
     const range = request.headers.range?.match(/^bytes=(\d+)-(\d*)$/);
     const start = range ? Number(range[1]) : 0;
@@ -134,4 +137,106 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       await browser.close();
     }
   });
+}
+
+for (const [name, engine] of Object.entries({ chromium, webkit })) {
+  test(
+    `${name}: buffers music on the audio clock and releases it on disposal`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const { createBufferedMusic } = await import('/music.js');
+          const audio = createAudio({ html5PoolSize: 0 });
+          audio.volume(0);
+          const { context } = audio.getOutput();
+          const sampleRate = context.sampleRate;
+          const blockFrames = sampleRate / 4;
+          const report = { closes: 0, error: null, reads: 0, starts: [] };
+          const original = context.createBufferSource.bind(context);
+          context.createBufferSource = () => {
+            const source = original();
+            const start = source.start.bind(source);
+            source.start = (when, offset) => {
+              if (source.buffer?.length === blockFrames) {
+                report.starts.push({ offset, when });
+              }
+              start(when, offset);
+            };
+            return source;
+          };
+          const track = createBufferedMusic(
+            audio,
+            {
+              blockFrames,
+              async open() {
+                return {
+                  close() {
+                    report.closes++;
+                  },
+                  duration: 4,
+                  async read() {
+                    report.reads++;
+                    return [new Float32Array(blockFrames)];
+                  },
+                };
+              },
+              sampleRate,
+            },
+            {
+              bufferSeconds: 1,
+              onFailure(error) {
+                report.error = String(error);
+              },
+            },
+          );
+          window.music = { audio, report, track };
+          document.querySelector('button').addEventListener('click', () => track.play());
+        });
+        await page.getByRole('button').click();
+        await page.waitForFunction(() => window.music.report.starts.length >= 4);
+        const baseline = await page.evaluate(() => {
+          const { report, track } = window.music;
+          const sampleExact = report.starts
+            .slice(1, 4)
+            .every(
+              ({ when }, index) => Math.abs(when - report.starts[index].when - 0.25) < 0.000001,
+            );
+          return {
+            error: report.error,
+            reads: report.reads,
+            sampleExact,
+            seconds: track.position(),
+          };
+        });
+        assert.equal(baseline.error, null);
+        assert.equal(baseline.sampleExact, true);
+        assert.ok(baseline.reads <= Math.floor(baseline.seconds / 0.25) + 4);
+        await page.waitForFunction(() => window.music.track.position() > 0.3);
+        const paused = await page.evaluate(() => {
+          window.music.track.pause();
+          return window.music.track.position();
+        });
+        assert.equal(await page.evaluate(() => window.music.track.position()), paused);
+        await page.getByRole('button').click();
+        await page.waitForFunction(
+          (paused) => window.music.track.position() > paused + 0.1,
+          paused,
+        );
+        const result = await page.evaluate(async () => {
+          const { audio, report, track } = window.music;
+          await audio.dispose();
+          track.unload();
+          return { closes: report.closes, error: report.error, playing: track.playing() };
+        });
+        assert.deepEqual(result, { closes: 1, error: null, playing: false });
+      } finally {
+        await browser.close();
+      }
+    },
+  );
 }
