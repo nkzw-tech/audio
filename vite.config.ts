@@ -11,7 +11,6 @@ export default defineConfig({
       'dist',
       'examples',
       'pnpm-lock.yaml',
-      'README.md',
       'src/audio.core.js',
       'src/plugins',
       'tests/css',
@@ -29,7 +28,8 @@ export default defineConfig({
     overrides: [{ env: { browser: true, node: true }, files: ['tests/*.mjs'] }],
   },
   pack: {
-    entry: { index: 'src/index.js' },
+    dts: true,
+    entry: { index: 'src/index.ts' },
     format: ['esm', 'cjs'],
     platform: 'neutral',
   },

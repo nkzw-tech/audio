@@ -9,6 +9,10 @@
 
 import { installSpatial } from './plugins/audio.spatial.js';
 
+/**
+ * @param {import('./index.ts').AudioOptions} [options]
+ * @returns {import('./index.ts').Audio}
+ */
 export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
   const lifetime = new AbortController();
   let disposePromise;
@@ -1723,6 +1727,11 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       return self;
     },
 
+    position(id) {
+      const position = id === undefined ? this.seek() : this._soundById(id) ? this.seek(id) : 0;
+      return typeof position === 'number' ? position : 0;
+    },
+
     /**
      * Check if a specific sound is currently playing or not (if id is provided), or check if at least one of the sounds in the group is playing or not.
      * @param  {Number}  id The sound id to check. If none is passed, the whole sound group is checked.
@@ -2641,7 +2650,7 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
   installSpatial(audio, AudioController, Sound, SoundInstance);
 
   return {
-    codecs: audio.codecs.bind(audio),
+    codecs: (extension) => Boolean(audio.codecs(extension)),
     dispose,
     getOutput,
     mute(muted) {
