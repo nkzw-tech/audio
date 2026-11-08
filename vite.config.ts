@@ -9,8 +9,6 @@ export default defineConfig({
       'CHANGELOG.md',
       'dist',
       'pnpm-lock.yaml',
-      'src/audio.core.js',
-      'src/plugins',
     ],
     singleQuote: true,
     sortImports: { newlinesBetween: false },
@@ -18,9 +16,20 @@ export default defineConfig({
   },
   lint: {
     extends: [nkzw],
-    ignorePatterns: ['dist/', 'src/audio.core.js', 'src/plugins/'],
+    ignorePatterns: ['dist/'],
     options: { typeAware: true, typeCheck: true },
-    overrides: [{ env: { browser: true, node: true }, files: ['tests/*.mjs'] }],
+    overrides: [
+      {
+        env: { browser: true },
+        files: ['src/**/*.js'],
+        rules: {
+          'no-empty': ['error', { allowEmptyCatch: true }],
+          'perfectionist/sort-objects': 'off',
+          'unicorn/consistent-function-scoping': 'off',
+        },
+      },
+      { env: { browser: true, node: true }, files: ['tests/*.mjs'] },
+    ],
   },
   pack: [
     {

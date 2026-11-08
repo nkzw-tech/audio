@@ -1,10 +1,10 @@
 /*!
  *  Spatial Plugin - Adds support for stereo and 3D audio where Web Audio is supported.
- *  
- *  @nkzw/audio v2.2.4
+ *
+ *  @nkzw/audio
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
- *  goldfirestudios.com
+ *  (c) 2026, Nakazawa Tech
  *
  *  MIT License
  */
@@ -23,7 +23,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {Number} pan A value of -1.0 is all the way left and 1.0 is all the way right.
    * @return {audio/Number}     Self or current stereo panning value.
    */
-  AudioController.prototype.stereo = function(pan) {
+  AudioController.prototype.stereo = function (pan) {
     const self = this;
 
     // Stop right here if not using Web Audio.
@@ -32,7 +32,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     }
 
     // Loop through all Sounds and update their stereo panning.
-    for (var i=self._soundGroups.length-1; i>=0; i--) {
+    for (let i = self._soundGroups.length - 1; i >= 0; i--) {
       self._soundGroups[i].stereo(pan);
     }
 
@@ -47,7 +47,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {Number} z The z-position of the listener.
    * @return {audio/Array}   Self or current listener position.
    */
-  AudioController.prototype.pos = function(x, y, z) {
+  AudioController.prototype.pos = function (x, y, z) {
     const self = this;
 
     // Stop right here if not using Web Audio.
@@ -56,13 +56,13 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     }
 
     // Set the defaults for optional 'y' & 'z'.
-    y = (typeof y !== 'number') ? self._pos[1] : y;
-    z = (typeof z !== 'number') ? self._pos[2] : z;
+    y = typeof y !== 'number' ? self._pos[1] : y;
+    z = typeof z !== 'number' ? self._pos[2] : z;
 
     if (typeof x === 'number') {
       self._pos = [x, y, z];
 
-      if (typeof self.ctx.listener.positionX !== 'undefined') {
+      if (self.ctx.listener.positionX !== undefined) {
         self.ctx.listener.positionX.setTargetAtTime(self._pos[0], audio.ctx.currentTime, 0.1);
         self.ctx.listener.positionY.setTargetAtTime(self._pos[1], audio.ctx.currentTime, 0.1);
         self.ctx.listener.positionZ.setTargetAtTime(self._pos[2], audio.ctx.currentTime, 0.1);
@@ -90,7 +90,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {Number} zUp The z-orientation of the top of the listener.
    * @return {audio/Array}     Returns self or the current orientation vectors.
    */
-  AudioController.prototype.orientation = function(x, y, z, xUp, yUp, zUp) {
+  AudioController.prototype.orientation = function (x, y, z, xUp, yUp, zUp) {
     const self = this;
 
     // Stop right here if not using Web Audio.
@@ -99,17 +99,17 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     }
 
     // Set the defaults for optional 'y' & 'z'.
-    var or = self._orientation;
-    y = (typeof y !== 'number') ? or[1] : y;
-    z = (typeof z !== 'number') ? or[2] : z;
-    xUp = (typeof xUp !== 'number') ? or[3] : xUp;
-    yUp = (typeof yUp !== 'number') ? or[4] : yUp;
-    zUp = (typeof zUp !== 'number') ? or[5] : zUp;
+    const or = self._orientation;
+    y = typeof y !== 'number' ? or[1] : y;
+    z = typeof z !== 'number' ? or[2] : z;
+    xUp = typeof xUp !== 'number' ? or[3] : xUp;
+    yUp = typeof yUp !== 'number' ? or[4] : yUp;
+    zUp = typeof zUp !== 'number' ? or[5] : zUp;
 
     if (typeof x === 'number') {
       self._orientation = [x, y, z, xUp, yUp, zUp];
 
-      if (typeof self.ctx.listener.forwardX !== 'undefined') {
+      if (self.ctx.listener.forwardX !== undefined) {
         self.ctx.listener.forwardX.setTargetAtTime(x, audio.ctx.currentTime, 0.1);
         self.ctx.listener.forwardY.setTargetAtTime(y, audio.ctx.currentTime, 0.1);
         self.ctx.listener.forwardZ.setTargetAtTime(z, audio.ctx.currentTime, 0.1);
@@ -134,8 +134,8 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {Function} _super Core init method.
    * @return {Sound}
    */
-  Sound.prototype.init = (function(_super) {
-    return function(o) {
+  Sound.prototype.init = (function (_super) {
+    return function (o) {
       const self = this;
 
       // Setup user-defined default properties.
@@ -143,20 +143,20 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
       self._stereo = o.stereo || null;
       self._pos = o.pos || null;
       self._pannerAttr = {
-        coneInnerAngle: typeof o.coneInnerAngle !== 'undefined' ? o.coneInnerAngle : 360,
-        coneOuterAngle: typeof o.coneOuterAngle !== 'undefined' ? o.coneOuterAngle : 360,
-        coneOuterGain: typeof o.coneOuterGain !== 'undefined' ? o.coneOuterGain : 0,
-        distanceModel: typeof o.distanceModel !== 'undefined' ? o.distanceModel : 'inverse',
-        maxDistance: typeof o.maxDistance !== 'undefined' ? o.maxDistance : 10000,
-        panningModel: typeof o.panningModel !== 'undefined' ? o.panningModel : 'HRTF',
-        refDistance: typeof o.refDistance !== 'undefined' ? o.refDistance : 1,
-        rolloffFactor: typeof o.rolloffFactor !== 'undefined' ? o.rolloffFactor : 1
+        coneInnerAngle: o.coneInnerAngle !== undefined ? o.coneInnerAngle : 360,
+        coneOuterAngle: o.coneOuterAngle !== undefined ? o.coneOuterAngle : 360,
+        coneOuterGain: o.coneOuterGain !== undefined ? o.coneOuterGain : 0,
+        distanceModel: o.distanceModel !== undefined ? o.distanceModel : 'inverse',
+        maxDistance: o.maxDistance !== undefined ? o.maxDistance : 10_000,
+        panningModel: o.panningModel !== undefined ? o.panningModel : 'HRTF',
+        refDistance: o.refDistance !== undefined ? o.refDistance : 1,
+        rolloffFactor: o.rolloffFactor !== undefined ? o.rolloffFactor : 1,
       };
 
       // Setup event listeners.
-      self._onstereo = o.onstereo ? [{fn: o.onstereo}] : [];
-      self._onpos = o.onpos ? [{fn: o.onpos}] : [];
-      self._onorientation = o.onorientation ? [{fn: o.onorientation}] : [];
+      self._onstereo = o.onstereo ? [{ fn: o.onstereo }] : [];
+      self._onpos = o.onpos ? [{ fn: o.onpos }] : [];
+      self._onorientation = o.onorientation ? [{ fn: o.onorientation }] : [];
 
       // Complete initilization with core's init function.
       return _super.call(this, o);
@@ -169,7 +169,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {Number} id (optional) The sound ID. If none is passed, all in group will be updated.
    * @return {Sound/Number}    Returns self or the current stereo panning value.
    */
-  Sound.prototype.stereo = function(pan, id) {
+  Sound.prototype.stereo = function (pan, id) {
     const self = this;
 
     // Stop right here if not using Web Audio.
@@ -181,19 +181,19 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     if (self._state !== 'loaded') {
       self._queue.push({
         event: 'stereo',
-        action: function() {
+        action() {
           self.stereo(pan, id);
-        }
+        },
       });
 
       return self;
     }
 
     // Check for PannerStereoNode support and fallback to PannerNode if it doesn't exist.
-    var pannerType = (typeof audio.ctx.createStereoPanner === 'undefined') ? 'spatial' : 'stereo';
+    const pannerType = audio.ctx.createStereoPanner === undefined ? 'spatial' : 'stereo';
 
     // Setup the group's stereo panning if no ID is passed.
-    if (typeof id === 'undefined') {
+    if (id === undefined) {
       // Return the group's stereo panning if no parameters are passed.
       if (typeof pan === 'number') {
         self._stereo = pan;
@@ -204,10 +204,10 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     }
 
     // Change the streo panning of one or all sounds in group.
-    var ids = self._getSoundIds(id);
-    for (var i=0; i<ids.length; i++) {
+    const ids = self._getSoundIds(id);
+    for (let i = 0; i < ids.length; i++) {
       // Get the sound.
-      var sound = self._soundById(ids[i]);
+      const sound = self._soundById(ids[i]);
 
       if (sound) {
         if (typeof pan === 'number') {
@@ -224,7 +224,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
             }
 
             if (pannerType === 'spatial') {
-              if (typeof sound._panner.positionX !== 'undefined') {
+              if (sound._panner.positionX !== undefined) {
                 sound._panner.positionX.setValueAtTime(pan, audio.ctx.currentTime);
                 sound._panner.positionY.setValueAtTime(0, audio.ctx.currentTime);
                 sound._panner.positionZ.setValueAtTime(0, audio.ctx.currentTime);
@@ -254,7 +254,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {Number} id (optional) The sound ID. If none is passed, all in group will be updated.
    * @return {Sound/Array}    Returns self or the current 3D spatial position: [x, y, z].
    */
-  Sound.prototype.pos = function(x, y, z, id) {
+  Sound.prototype.pos = function (x, y, z, id) {
     const self = this;
 
     // Stop right here if not using Web Audio.
@@ -266,20 +266,20 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     if (self._state !== 'loaded') {
       self._queue.push({
         event: 'pos',
-        action: function() {
+        action() {
           self.pos(x, y, z, id);
-        }
+        },
       });
 
       return self;
     }
 
     // Set the defaults for optional 'y' & 'z'.
-    y = (typeof y !== 'number') ? 0 : y;
-    z = (typeof z !== 'number') ? -0.5 : z;
+    y = typeof y !== 'number' ? 0 : y;
+    z = typeof z !== 'number' ? -0.5 : z;
 
     // Setup the group's spatial position if no ID is passed.
-    if (typeof id === 'undefined') {
+    if (id === undefined) {
       // Return the group's spatial position if no parameters are passed.
       if (typeof x === 'number') {
         self._pos = [x, y, z];
@@ -289,10 +289,10 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     }
 
     // Change the spatial position of one or all sounds in group.
-    var ids = self._getSoundIds(id);
-    for (var i=0; i<ids.length; i++) {
+    const ids = self._getSoundIds(id);
+    for (let i = 0; i < ids.length; i++) {
       // Get the sound.
-      var sound = self._soundById(ids[i]);
+      const sound = self._soundById(ids[i]);
 
       if (sound) {
         if (typeof x === 'number') {
@@ -304,7 +304,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
               setupPanner(sound, 'spatial');
             }
 
-            if (typeof sound._panner.positionX !== 'undefined') {
+            if (sound._panner.positionX !== undefined) {
               sound._panner.positionX.setValueAtTime(x, audio.ctx.currentTime);
               sound._panner.positionY.setValueAtTime(y, audio.ctx.currentTime);
               sound._panner.positionZ.setValueAtTime(z, audio.ctx.currentTime);
@@ -333,7 +333,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {Number} id (optional) The sound ID. If none is passed, all in group will be updated.
    * @return {Sound/Array}    Returns self or the current 3D spatial orientation: [x, y, z].
    */
-  Sound.prototype.orientation = function(x, y, z, id) {
+  Sound.prototype.orientation = function (x, y, z, id) {
     const self = this;
 
     // Stop right here if not using Web Audio.
@@ -345,20 +345,20 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     if (self._state !== 'loaded') {
       self._queue.push({
         event: 'orientation',
-        action: function() {
+        action() {
           self.orientation(x, y, z, id);
-        }
+        },
       });
 
       return self;
     }
 
     // Set the defaults for optional 'y' & 'z'.
-    y = (typeof y !== 'number') ? self._orientation[1] : y;
-    z = (typeof z !== 'number') ? self._orientation[2] : z;
+    y = typeof y !== 'number' ? self._orientation[1] : y;
+    z = typeof z !== 'number' ? self._orientation[2] : z;
 
     // Setup the group's spatial orientation if no ID is passed.
-    if (typeof id === 'undefined') {
+    if (id === undefined) {
       // Return the group's spatial orientation if no parameters are passed.
       if (typeof x === 'number') {
         self._orientation = [x, y, z];
@@ -368,10 +368,10 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     }
 
     // Change the spatial orientation of one or all sounds in group.
-    var ids = self._getSoundIds(id);
-    for (var i=0; i<ids.length; i++) {
+    const ids = self._getSoundIds(id);
+    for (let i = 0; i < ids.length; i++) {
       // Get the sound.
-      var sound = self._soundById(ids[i]);
+      const sound = self._soundById(ids[i]);
 
       if (sound) {
         if (typeof x === 'number') {
@@ -388,7 +388,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
               setupPanner(sound, 'spatial');
             }
 
-            if (typeof sound._panner.orientationX !== 'undefined') {
+            if (sound._panner.orientationX !== undefined) {
               sound._panner.orientationX.setValueAtTime(x, audio.ctx.currentTime);
               sound._panner.orientationY.setValueAtTime(y, audio.ctx.currentTime);
               sound._panner.orientationZ.setValueAtTime(z, audio.ctx.currentTime);
@@ -437,10 +437,10 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    *
    * @return {Sound/Object} Returns self or current panner attributes.
    */
-  Sound.prototype.pannerAttr = function() {
+  Sound.prototype.pannerAttr = function () {
     const self = this;
-    var args = arguments;
-    var o, id, sound;
+    const args = arguments;
+    let o, id, sound;
 
     // Stop right here if not using Web Audio.
     if (!self._webAudio) {
@@ -456,7 +456,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
         o = args[0];
 
         // Set the grou's panner attribute values.
-        if (typeof id === 'undefined') {
+        if (id === undefined) {
           if (!o.pannerAttr) {
             o.pannerAttr = {
               coneInnerAngle: o.coneInnerAngle,
@@ -466,52 +466,72 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
               maxDistance: o.maxDistance,
               refDistance: o.refDistance,
               rolloffFactor: o.rolloffFactor,
-              panningModel: o.panningModel
+              panningModel: o.panningModel,
             };
           }
 
           self._pannerAttr = {
-            coneInnerAngle: typeof o.pannerAttr.coneInnerAngle !== 'undefined' ? o.pannerAttr.coneInnerAngle : self._coneInnerAngle,
-            coneOuterAngle: typeof o.pannerAttr.coneOuterAngle !== 'undefined' ? o.pannerAttr.coneOuterAngle : self._coneOuterAngle,
-            coneOuterGain: typeof o.pannerAttr.coneOuterGain !== 'undefined' ? o.pannerAttr.coneOuterGain : self._coneOuterGain,
-            distanceModel: typeof o.pannerAttr.distanceModel !== 'undefined' ? o.pannerAttr.distanceModel : self._distanceModel,
-            maxDistance: typeof o.pannerAttr.maxDistance !== 'undefined' ? o.pannerAttr.maxDistance : self._maxDistance,
-            refDistance: typeof o.pannerAttr.refDistance !== 'undefined' ? o.pannerAttr.refDistance : self._refDistance,
-            rolloffFactor: typeof o.pannerAttr.rolloffFactor !== 'undefined' ? o.pannerAttr.rolloffFactor : self._rolloffFactor,
-            panningModel: typeof o.pannerAttr.panningModel !== 'undefined' ? o.pannerAttr.panningModel : self._panningModel
+            coneInnerAngle:
+              o.pannerAttr.coneInnerAngle !== undefined
+                ? o.pannerAttr.coneInnerAngle
+                : self._coneInnerAngle,
+            coneOuterAngle:
+              o.pannerAttr.coneOuterAngle !== undefined
+                ? o.pannerAttr.coneOuterAngle
+                : self._coneOuterAngle,
+            coneOuterGain:
+              o.pannerAttr.coneOuterGain !== undefined
+                ? o.pannerAttr.coneOuterGain
+                : self._coneOuterGain,
+            distanceModel:
+              o.pannerAttr.distanceModel !== undefined
+                ? o.pannerAttr.distanceModel
+                : self._distanceModel,
+            maxDistance:
+              o.pannerAttr.maxDistance !== undefined ? o.pannerAttr.maxDistance : self._maxDistance,
+            refDistance:
+              o.pannerAttr.refDistance !== undefined ? o.pannerAttr.refDistance : self._refDistance,
+            rolloffFactor:
+              o.pannerAttr.rolloffFactor !== undefined
+                ? o.pannerAttr.rolloffFactor
+                : self._rolloffFactor,
+            panningModel:
+              o.pannerAttr.panningModel !== undefined
+                ? o.pannerAttr.panningModel
+                : self._panningModel,
           };
         }
       } else {
         // Return this sound's panner attribute values.
-        sound = self._soundById(parseInt(args[0], 10));
+        sound = self._soundById(Number.parseInt(args[0], 10));
         return sound ? sound._pannerAttr : self._pannerAttr;
       }
     } else if (args.length === 2) {
       o = args[0];
-      id = parseInt(args[1], 10);
+      id = Number.parseInt(args[1], 10);
     }
 
     // Update the values of the specified sounds.
-    var ids = self._getSoundIds(id);
-    for (var i=0; i<ids.length; i++) {
+    const ids = self._getSoundIds(id);
+    for (let i = 0; i < ids.length; i++) {
       sound = self._soundById(ids[i]);
 
       if (sound) {
         // Merge the new values into the sound.
-        var pa = sound._pannerAttr;
+        let pa = sound._pannerAttr;
         pa = {
-          coneInnerAngle: typeof o.coneInnerAngle !== 'undefined' ? o.coneInnerAngle : pa.coneInnerAngle,
-          coneOuterAngle: typeof o.coneOuterAngle !== 'undefined' ? o.coneOuterAngle : pa.coneOuterAngle,
-          coneOuterGain: typeof o.coneOuterGain !== 'undefined' ? o.coneOuterGain : pa.coneOuterGain,
-          distanceModel: typeof o.distanceModel !== 'undefined' ? o.distanceModel : pa.distanceModel,
-          maxDistance: typeof o.maxDistance !== 'undefined' ? o.maxDistance : pa.maxDistance,
-          refDistance: typeof o.refDistance !== 'undefined' ? o.refDistance : pa.refDistance,
-          rolloffFactor: typeof o.rolloffFactor !== 'undefined' ? o.rolloffFactor : pa.rolloffFactor,
-          panningModel: typeof o.panningModel !== 'undefined' ? o.panningModel : pa.panningModel
+          coneInnerAngle: o.coneInnerAngle !== undefined ? o.coneInnerAngle : pa.coneInnerAngle,
+          coneOuterAngle: o.coneOuterAngle !== undefined ? o.coneOuterAngle : pa.coneOuterAngle,
+          coneOuterGain: o.coneOuterGain !== undefined ? o.coneOuterGain : pa.coneOuterGain,
+          distanceModel: o.distanceModel !== undefined ? o.distanceModel : pa.distanceModel,
+          maxDistance: o.maxDistance !== undefined ? o.maxDistance : pa.maxDistance,
+          refDistance: o.refDistance !== undefined ? o.refDistance : pa.refDistance,
+          rolloffFactor: o.rolloffFactor !== undefined ? o.rolloffFactor : pa.rolloffFactor,
+          panningModel: o.panningModel !== undefined ? o.panningModel : pa.panningModel,
         };
 
         // Create a new panner node if one doesn't already exist.
-        var panner = sound._panner;
+        let panner = sound._panner;
         if (!panner) {
           // Make sure we have a position to setup the node with.
           if (!sound._pos) {
@@ -520,7 +540,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
 
           // Create a new panner node.
           setupPanner(sound, 'spatial');
-          panner = sound._panner
+          panner = sound._panner;
         }
 
         // Update the panner values or create a new panner if none exists.
@@ -546,10 +566,10 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {Function} _super Core SoundInstance init method.
    * @return {SoundInstance}
    */
-  SoundInstance.prototype.init = (function(_super) {
-    return function() {
+  SoundInstance.prototype.init = (function (_super) {
+    return function () {
       const self = this;
-      var parent = self._parent;
+      const parent = self._parent;
 
       // Setup user-defined default properties.
       self._orientation = parent._orientation;
@@ -574,10 +594,10 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {Function} _super SoundInstance reset method.
    * @return {SoundInstance}
    */
-  SoundInstance.prototype.reset = (function(_super) {
-    return function() {
+  SoundInstance.prototype.reset = (function (_super) {
+    return function () {
       const self = this;
-      var parent = self._parent;
+      const parent = self._parent;
 
       // Reset all spatial plugin properties on this sound.
       self._orientation = parent._orientation;
@@ -610,7 +630,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
    * @param  {SoundInstance} sound Specific sound to setup panning on.
    * @param {String} type Type of panner to create: 'stereo' or 'spatial'.
    */
-  var setupPanner = function(sound, type) {
+  function setupPanner(sound, type) {
     type = type || 'spatial';
 
     // Create the new panner node.
@@ -625,7 +645,7 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
       sound._panner.rolloffFactor = sound._pannerAttr.rolloffFactor;
       sound._panner.panningModel = sound._pannerAttr.panningModel;
 
-      if (typeof sound._panner.positionX !== 'undefined') {
+      if (sound._panner.positionX !== undefined) {
         sound._panner.positionX.setValueAtTime(sound._pos[0], audio.ctx.currentTime);
         sound._panner.positionY.setValueAtTime(sound._pos[1], audio.ctx.currentTime);
         sound._panner.positionZ.setValueAtTime(sound._pos[2], audio.ctx.currentTime);
@@ -633,12 +653,16 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
         sound._panner.setPosition(sound._pos[0], sound._pos[1], sound._pos[2]);
       }
 
-      if (typeof sound._panner.orientationX !== 'undefined') {
+      if (sound._panner.orientationX !== undefined) {
         sound._panner.orientationX.setValueAtTime(sound._orientation[0], audio.ctx.currentTime);
         sound._panner.orientationY.setValueAtTime(sound._orientation[1], audio.ctx.currentTime);
         sound._panner.orientationZ.setValueAtTime(sound._orientation[2], audio.ctx.currentTime);
       } else {
-        sound._panner.setOrientation(sound._orientation[0], sound._orientation[1], sound._orientation[2]);
+        sound._panner.setOrientation(
+          sound._orientation[0],
+          sound._orientation[1],
+          sound._orientation[2],
+        );
       }
     } else {
       sound._panner = audio.ctx.createStereoPanner();
@@ -651,5 +675,5 @@ export function installSpatial(audio, AudioController, Sound, SoundInstance) {
     if (!sound._paused) {
       sound._parent.pause(sound._id, true).play(sound._id, true);
     }
-  };
+  }
 }
