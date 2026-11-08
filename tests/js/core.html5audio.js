@@ -1,4 +1,4 @@
-import { createAudio } from '../../dist/index.js';
+import { createAudio } from '../../lib/index.js';
 
 const audio = createAudio();
 

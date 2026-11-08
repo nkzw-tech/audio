@@ -7,7 +7,7 @@
  *  SPDX-License-Identifier: MIT
  */
 
-import { createAudio } from '../../../dist/index.js';
+import { createAudio } from '../../../lib/index.js';
 import { Camera } from './camera.js';
 import { Controls } from './controls.js';
 import { Scene } from './map.js';

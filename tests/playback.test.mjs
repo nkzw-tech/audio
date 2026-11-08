@@ -12,9 +12,9 @@ const engines = Object.entries(
 );
 
 const scripts = new Map([
-  ['/audio.js', await readFile(new URL('../dist/index.js', import.meta.url))],
-  ['/music.js', await readFile(new URL('../dist/music.js', import.meta.url))],
-  ['/music-worker.js', await readFile(new URL('../dist/music-worker.js', import.meta.url))],
+  ['/audio.js', await readFile(new URL('../lib/index.js', import.meta.url))],
+  ['/music.js', await readFile(new URL('../lib/music.js', import.meta.url))],
+  ['/music-worker.js', await readFile(new URL('../lib/music-worker.js', import.meta.url))],
 ]);
 const aac = await readFile(new URL('./audio/loop.aac', import.meta.url));
 const audio = await readFile(new URL('./audio/sound1.wav', import.meta.url));

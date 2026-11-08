@@ -7,7 +7,7 @@ export default defineConfig({
       '.github/ISSUE_TEMPLATE',
       '.github/PULL_REQUEST_TEMPLATE.md',
       'CHANGELOG.md',
-      'dist',
+      'lib',
       'pnpm-lock.yaml',
     ],
     singleQuote: true,
@@ -16,7 +16,7 @@ export default defineConfig({
   },
   lint: {
     extends: [nkzw],
-    ignorePatterns: ['dist/'],
+    ignorePatterns: ['lib/'],
     options: { typeAware: true, typeCheck: true },
     overrides: [
       {
@@ -38,6 +38,7 @@ export default defineConfig({
       entry: { index: 'src/index.ts', music: 'src/music/index.ts' },
       format: ['esm', 'cjs'],
       minify: true,
+      outDir: 'lib',
       platform: 'neutral',
     },
     {
@@ -45,6 +46,7 @@ export default defineConfig({
       entry: { 'music-worker': 'src/music/adtsWorker.ts' },
       format: 'esm',
       minify: true,
+      outDir: 'lib',
       platform: 'browser',
     },
   ],

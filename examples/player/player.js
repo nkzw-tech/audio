@@ -7,7 +7,7 @@
  *  SPDX-License-Identifier: MIT
  */
 
-import { createAudio } from '../../dist/index.js';
+import { createAudio } from '../../lib/index.js';
 import { SiriWave } from './siriwave.js';
 
 const audio = createAudio();
