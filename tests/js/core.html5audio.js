@@ -3,12 +3,12 @@ var label = document.getElementById('label');
 var start = document.getElementById('start');
 
 // Setup the sounds to be used.
-var sound1 = new Howl({
+var sound1 = new NkzwAudio.Sound({
   src: ['audio/sound1.webm', 'audio/sound1.mp3'],
   html5: true
 });
 
-var sound2 = new Howl({
+var sound2 = new NkzwAudio.Sound({
   src: ['audio/sound2.webm', 'audio/sound2.mp3'],
   html5: true,
   sprite: {

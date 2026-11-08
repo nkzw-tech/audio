@@ -1,17 +1,9 @@
-[![howler.js](https://s3.amazonaws.com/howler.js/howler-logo.png "howler.js")](https://howlerjs.com)
+# @nkzw/audio
 
-# Sponsors
-Thank you to our sponsors for their support of this project:
+> [!NOTE]
+> This project is a fork of [Howler.js](https://github.com/goldfire/howler.js), based on version 2.2.4.
 
-### Recall.ai - API for meeting recordings
-If you’re looking for a meeting recording API, consider checking out [Recall.ai](https://www.recall.ai/product/meeting-recording-api?utm_source=github&utm_medium=sponsorship&utm_campaign=goldfire-howlerjs), an API that records Zoom, Google Meet, Microsoft Teams, in-person meetings, and more.
-
-# Description
-[howler.js](https://howlerjs.com) is an audio library for the modern web. It defaults to [Web Audio API](http://webaudio.github.io/web-audio-api/) and falls back to [HTML5 Audio](https://html.spec.whatwg.org/multipage/embedded-content.html#the-audio-element). This makes working with audio in JavaScript easy and reliable across all platforms.
-
-Additional information, live demos and a user showcase are available at [howlerjs.com](https://howlerjs.com).
-
-Follow on Twitter for howler.js and development-related discussion: [@GoldFireStudios](https://twitter.com/goldfirestudios).
+Cross-platform sound and music playback using the [Web Audio API](https://webaudio.github.io/web-audio-api/) with an [HTML audio fallback](https://html.spec.whatwg.org/multipage/media.html#the-audio-element).
 
 ### Features
 * Single API for all audio needs
@@ -29,7 +21,7 @@ Follow on Twitter for howler.js and development-related discussion: [@GoldFireSt
 * As light as 7kb gzipped
 
 ### Browser Compatibility
-Tested in the following browsers/versions:
+Upstream 2.2.4 documents the following browser support.
 * Google Chrome 7.0+
 * Internet Explorer 9.0+
 * Firefox 4.0+
@@ -37,12 +29,6 @@ Tested in the following browsers/versions:
 * Mobile Safari 6.0+ (after user input)
 * Opera 12.0+
 * Microsoft Edge
-
-### Live Demos
-* [Audio Player](https://howlerjs.com/#player)
-* [Radio](https://howlerjs.com/#radio)
-* [Spatial Audio](https://howlerjs.com/#spatial)
-* [Audio Sprites](https://howlerjs.com/#sprite)
 
 # Documentation
 
@@ -61,53 +47,32 @@ Tested in the following browsers/versions:
 * [Group Playback](#group-playback)
 * [Mobile Playback](#mobilechrome-playback)
 * [Dolby Audio Playback](#dolby-audio-playback)
-* [Facebook Instant Games](#facebook-instant-games)
 * [Format Recommendations](#format-recommendations)
 * [License](#license)
 
 ### Quick Start
 
-Several options to get up and running:
-
-* Clone the repo: `git clone https://github.com/goldfire/howler.js.git`
-* Install with [npm](https://www.npmjs.com/package/howler): `npm install howler`
-* Install with [Yarn](https://yarnpkg.com/en/package/howler): `yarn add howler`
-* Install with [Bower](http://bower.io/): `bower install howler`
-* Hosted CDN: [`cdnjs`](https://cdnjs.com/libraries/howler) [`jsDelivr`](https://www.jsdelivr.com/projects/howler.js)
-
-In the browser:
-
-```html
-<script src="/path/to/howler.js"></script>
-<script>
-    var sound = new Howl({
-      src: ['sound.webm', 'sound.mp3']
-    });
-</script>
+```sh
+npm install @nkzw/audio
 ```
 
-As a dependency:
+```js
+import { Audio, Sound } from '@nkzw/audio';
 
-```javascript
-import {Howl, Howler} from 'howler';
+const sound = new Sound({ src: ['sound.webm', 'sound.mp3'] });
+sound.play();
+Audio.volume(0.5);
 ```
 
-```javascript
-const {Howl, Howler} = require('howler');
-```
+CommonJS consumers can use `const { Audio, Sound } = require('@nkzw/audio')`. For a classic script, load `dist/audio.js` and use `NkzwAudio.Audio` and `NkzwAudio.Sound`. The `Audio` export controls the shared playback context, and `Sound` represents one audio asset and its playback instances.
 
-Included distribution files:
-
-* **howler**: This is the default and fully bundled source that includes `howler.core` and `howler.spatial`. It includes all functionality that howler comes with.
-* **howler.core**: This includes only the core functionality that aims to create parity between Web Audio and HTML5 Audio. It doesn't include any of the spatial/stereo audio functionality.
-* **howler.spatial**: This is a plugin that adds spatial/stereo audio functionality. It requires `howler.core` to operate as it is simply an add-on to the core.
-
+The default bundle includes core playback and spatial audio. The minified core and spatial plugin are also available as `dist/audio.core.min.js` and `dist/audio.spatial.min.js`. Load the core first when using them separately.
 
 ### Examples
 
 ##### Most basic, play an MP3:
 ```javascript
-var sound = new Howl({
+var sound = new Sound({
   src: ['sound.mp3']
 });
 
@@ -116,7 +81,7 @@ sound.play();
 
 ##### Streaming audio (for live audio or large files):
 ```javascript
-var sound = new Howl({
+var sound = new Sound({
   src: ['stream.mp3'],
   html5: true
 });
@@ -126,7 +91,7 @@ sound.play();
 
 ##### More playback options:
 ```javascript
-var sound = new Howl({
+var sound = new Sound({
   src: ['sound.webm', 'sound.mp3', 'sound.wav'],
   autoplay: true,
   loop: true,
@@ -139,7 +104,7 @@ var sound = new Howl({
 
 ##### Define and play a sound sprite:
 ```javascript
-var sound = new Howl({
+var sound = new Sound({
   src: ['sounds.webm', 'sounds.mp3'],
   sprite: {
     blast: [0, 3000],
@@ -154,7 +119,7 @@ sound.play('laser');
 
 ##### Listen for events:
 ```javascript
-var sound = new Howl({
+var sound = new Sound({
   src: ['sound.webm', 'sound.mp3']
 });
 
@@ -171,12 +136,12 @@ sound.on('end', function(){
 
 ##### Control multiple sounds:
 ```javascript
-var sound = new Howl({
+var sound = new Sound({
   src: ['sound.webm', 'sound.mp3']
 });
 
 // Play returns a unique Sound ID that can be passed
-// into any method on Howl to control that specific sound.
+// into any method on Sound to control that specific sound.
 var id1 = sound.play();
 var id2 = sound.play();
 
@@ -185,31 +150,13 @@ sound.fade(1, 0, 1000, id1);
 sound.rate(1.5, id2);
 ```
 
-##### ES6:
-```javascript
-import {Howl, Howler} from 'howler';
-
-// Setup the new Howl.
-const sound = new Howl({
-  src: ['sound.webm', 'sound.mp3']
-});
-
-// Play the sound.
-sound.play();
-
-// Change global volume.
-Howler.volume(0.5);
-```
-
-
-More in-depth examples (with accompanying live demos) can be found in the [examples directory](https://github.com/goldfire/howler.js/tree/master/examples).
-
+See the [examples directory](./examples/) for complete examples.
 
 ## Core
 
 ### Options
 #### src `Array/String` `[]` *`required`*
-The sources to the track(s) to be loaded for the sound (URLs or base64 data URIs). These should be in order of preference, howler.js will automatically load the first one that is compatible with the current browser. If your files have no extensions, you will need to explicitly specify the extension using the `format` property.
+The sources to the track(s) to be loaded for the sound (URLs or base64 data URIs). These should be in order of preference, @nkzw/audio will automatically load the first one that is compatible with the current browser. If your files have no extensions, you will need to explicitly specify the extension using the `format` property.
 #### volume `Number` `1.0`
 The volume of the specific track, from `0.0` to `1.0`.
 #### html5 `Boolean` `false`
@@ -217,7 +164,7 @@ Set to `true` to force HTML5 Audio. This should be used for large audio files so
 #### loop `Boolean` `false`
 Set to `true` to automatically loop the sound forever.
 #### preload `Boolean|String` `true`
-Automatically begin downloading the audio file when the `Howl` is defined. If using HTML5 Audio, you can set this to `'metadata'` to only preload the file's metadata (to get its duration without download the entire file, for example). 
+Automatically begin downloading the audio file when the `Sound` is defined. If using HTML5 Audio, you can set this to `'metadata'` to only preload the file's metadata (to get its duration without download the entire file, for example).
 #### autoplay `Boolean` `false`
 Set to `true` to automatically start playback when sound is loaded.
 #### mute `Boolean` `false`
@@ -225,7 +172,7 @@ Set to `true` to load the audio muted.
 #### sprite `Object` `{}`
 Define a sound sprite for the sound. The offset and duration are defined in milliseconds. A third (optional) parameter is available to set a sprite as looping. An easy way to generate compatible sound sprites is with [audiosprite](https://github.com/tonistiigi/audiosprite).
 ```javascript
-new Howl({
+new Sound({
   sprite: {
     key1: [offset, duration, (loop)]
   },
@@ -236,12 +183,12 @@ The rate of playback. 0.5 to 4.0, with 1.0 being normal speed.
 #### pool `Number` `5`
 The size of the inactive sounds pool. Once sounds are stopped or finish playing, they are marked as ended and ready for cleanup. We keep a pool of these to recycle for improved performance. Generally this doesn't need to be changed. It is important to keep in mind that when a sound is paused, it won't be removed from the pool and will still be considered active so that it can be resumed later.
 #### format `Array` `[]`
-howler.js automatically detects your file format from the extension, but you may also specify a format in situations where extraction won't work (such as with a SoundCloud stream).
+@nkzw/audio automatically detects your file format from the extension, but you may also specify a format in situations where extraction won't work (such as with a SoundCloud stream).
 #### xhr `Object` `null`
-When using Web Audio, howler.js uses an XHR request to load the audio files. If you need to send custom headers, set the HTTP method or enable `withCredentials` ([see reference](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/withCredentials)), include them with this parameter. Each is optional (method defaults to `GET`, headers default to `null` and withCredentials defaults to `false`). For example:
+When using Web Audio, @nkzw/audio uses an XHR request to load the audio files. If you need to send custom headers, set the HTTP method or enable `withCredentials` ([see reference](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/withCredentials)), include them with this parameter. Each is optional (method defaults to `GET`, headers default to `null` and withCredentials defaults to `false`). For example:
 ```javascript
 // Using each of the properties.
-new Howl({
+new Sound({
   xhr: {
     method: 'POST',
     headers: {
@@ -252,7 +199,7 @@ new Howl({
 });
 
 // Only changing the method.
-new Howl({
+new Sound({
   xhr: {
     method: 'POST',
   }
@@ -338,10 +285,10 @@ Get/set whether to loop the sound or group. This method can optionally take 0, 1
 * **id**: `Number` `optional` The sound ID. If none is passed, all sounds in group will have their `loop` property updated.
 
 #### state()
-Check the load status of the `Howl`, returns a `unloaded`, `loading` or `loaded`.
+Check the load status of the `Sound`, returns a `unloaded`, `loading` or `loaded`.
 
 #### playing([id])
-Check if a sound is currently playing or not, returns a `Boolean`. If no sound ID is passed, check if any sound in the `Howl` group is playing.
+Check if a sound is currently playing or not, returns a `Boolean`. If no sound ID is passed, check if any sound in the `Sound` group is playing.
 * **id**: `Number` `optional` The sound ID to check.
 
 #### duration([id])
@@ -370,7 +317,7 @@ Remove event listener that you've set. Call without parameters to remove all eve
 This is called by default, but if you set `preload` to false, you must call `load` before you can play any sounds.
 
 #### unload()
-Unload and destroy a Howl object. This will immediately stop all sounds attached to this sound and remove it from the cache.
+Unload and destroy a Sound object. This will immediately stop all sounds attached to this sound and remove it from the cache.
 
 
 ### Global Options
@@ -381,7 +328,7 @@ Unload and destroy a Howl object. This will immediately stop all sounds attached
 #### autoUnlock `Boolean` `true`
 Automatically attempts to enable audio on mobile (iOS, Android, etc) devices and desktop Chrome/Safari.
 #### html5PoolSize `Number` `10`
-Each HTML5 Audio object must be unlocked individually, so we keep a global pool of unlocked nodes to share between all `Howl` instances. This pool gets created on the first user interaction and is set to the size of this property.
+Each HTML5 Audio object must be unlocked individually, so we keep a global pool of unlocked nodes to share between all `Sound` instances. This pool gets created on the first user interaction and is set to the size of this property.
 #### autoSuspend `Boolean` `true`
 Automatically suspends the Web Audio AudioContext after 30 seconds of inactivity to decrease processing and energy usage. Automatically resumes upon new playback. Set this property to `false` to disable this behavior.
 #### ctx `Boolean` *`Web Audio Only`*
@@ -391,7 +338,7 @@ Exposes the master `GainNode` with Web Audio API. This can be useful for writing
 
 
 ### Global Methods
-The following methods are used to modify all sounds globally, and are called from the `Howler` object.
+The following methods are used to modify all sounds globally, and are called from the `Audio` object.
 #### mute(muted)
 Mute or unmute all sounds.
 * **muted**: `Boolean` True to mute and false to unmute.
@@ -408,7 +355,7 @@ Check supported audio codecs. Returns `true` if the codec is supported in the cu
 * **ext**: `String` File extension. One of: "mp3", "mpeg", "opus", "ogg", "oga", "wav", "aac", "caf", "m4a", "m4b", "mp4", "weba", "webm", "dolby", "flac".
 
 #### unload()
-Unload and destroy all currently loaded Howl objects. This will immediately stop all sounds and remove them from cache.
+Unload and destroy all currently loaded Sound objects. This will immediately stop all sounds and remove them from cache.
 
 
 ## Plugin: Spatial
@@ -466,7 +413,7 @@ Get/set the panner node's attributes for a sound or group of sounds.
 
 ### Global Methods
 #### stereo(pan)
-Helper method to update the stereo panning position of all current `Howls`. Future `Howls` will not use this value unless explicitly set.
+Helper method to update the stereo panning position of all current `sounds`. Future `sounds` will not use this value unless explicitly set.
 * **pan**: `Number` A value of -1.0 is all the way left and 1.0 is all the way right.
 
 #### pos(x, y, z)
@@ -486,10 +433,10 @@ Get/set the direction the listener is pointing in the 3D cartesian space. A fron
 
 
 ### Group Playback
-Each `new Howl()` instance is also a group. You can play multiple sound instances from the `Howl` and control them individually or as a group (note: each `Howl` can only contain a single audio file). For example, the following plays two sounds from a sprite, changes their volume together and then pauses both of them at the same time.
+Each `new Sound()` instance is also a group. You can play multiple sound instances from the `Sound` and control them individually or as a group (note: each `Sound` can only contain a single audio file). For example, the following plays two sounds from a sprite, changes their volume together and then pauses both of them at the same time.
 
 ```javascript
-var sound = new Howl({
+var sound = new Sound({
   src: ['sound.webm', 'sound.mp3'],
   sprite: {
     track01: [0, 20000],
@@ -512,16 +459,16 @@ setTimeout(function() {
 
 
 ### Mobile/Chrome Playback
-By default, audio on mobile browsers and Chrome/Safari is locked until a sound is played within a user interaction, and then it plays normally the rest of the page session ([Apple documentation](https://developer.apple.com/library/safari/documentation/audiovideo/conceptual/using_html5_audio_video/PlayingandSynthesizingSounds/PlayingandSynthesizingSounds.html)). The default behavior of howler.js is to attempt to silently unlock audio playback by playing an empty buffer on the first `touchend` event. This behavior can be disabled by calling:
+By default, audio on mobile browsers and Chrome/Safari is locked until a sound is played within a user interaction, and then it plays normally the rest of the page session ([Apple documentation](https://developer.apple.com/library/safari/documentation/audiovideo/conceptual/using_html5_audio_video/PlayingandSynthesizingSounds/PlayingandSynthesizingSounds.html)). The default behavior of @nkzw/audio is to attempt to silently unlock audio playback by playing an empty buffer on the first `touchend` event. This behavior can be disabled by calling:
 
 ```javascript
-Howler.autoUnlock = false;
+Audio.autoUnlock = false;
 ```
 
 If you try to play audio automatically on page load, you can listen to a `playerror` event and then wait for the `unlock` event to try and play the audio again:
 
 ```javascript
-var sound = new Howl({
+var sound = new Sound({
   src: ['sound.webm', 'sound.mp3'],
   onplayerror: function() {
     sound.once('unlock', function() {
@@ -538,19 +485,16 @@ sound.play();
 Full support for playback of the Dolby Audio format (currently support in Edge and Safari) is included. However, you must specify that the file you are loading is `dolby` since it is in a `mp4` container.
 
 ```javascript
-var dolbySound = new Howl({
+var dolbySound = new Sound({
   src: ['sound.mp4', 'sound.webm', 'sound.mp3'],
   format: ['dolby', 'webm', 'mp3']
 });
 ```
 
-### Facebook Instant Games
-Howler.js provides audio support for the new [Facebook Instant Games](https://developers.facebook.com/docs/games/instant-games/engine-recommendations) platform. If you encounter any issues while developing for Instant Games, open an issue with the tag `[IG]`.
-
 ### Format Recommendations
-Howler.js supports a wide array of audio codecs that have varying browser support ("mp3", "opus", "ogg", "wav", "aac", "m4a", "m4b", "mp4", "webm", ...), but if you want full browser coverage you still need to use at least two of them. If your goal is to have the best balance of small filesize and high quality, based on extensive production testing, your best bet is to default to `webm` and fallback to `mp3`. `webm` has nearly full browser coverage with a great combination of compression and quality. You'll need the `mp3` fallback for Internet Explorer.
+@nkzw/audio supports a wide array of audio codecs that have varying browser support ("mp3", "opus", "ogg", "wav", "aac", "m4a", "m4b", "mp4", "webm", ...), but if you want full browser coverage you still need to use at least two of them. If your goal is to have the best balance of small filesize and high quality, based on extensive production testing, your best bet is to default to `webm` and fallback to `mp3`. `webm` has nearly full browser coverage with a great combination of compression and quality. You'll need the `mp3` fallback for Internet Explorer.
 
-It is important to remember that howler.js selects the first compatible sound from your array of sources. So if you want `webm` to be used before `mp3`, you need to put the sources in that order.
+It is important to remember that @nkzw/audio selects the first compatible sound from your array of sources. So if you want `webm` to be used before `mp3`, you need to put the sources in that order.
 
 If you want your `webm` files to be seekable in Firefox, be sure to encode them with the cues element. One way to do this is by using the `dash` flag in [ffmpeg](https://www.ffmpeg.org/):
 
@@ -558,13 +502,8 @@ If you want your `webm` files to be seekable in Firefox, be sure to encode them 
 ffmpeg -i sound1.wav -dash 1 sound1.webm
 ```
 
-### Sponsors
-Support the ongoing development of howler.js and get your logo on our README with a link to your site [[become a sponsor](https://github.com/sponsors/goldfire)]. You can also become a backer at a lower tier and get your name in the [BACKERS](https://github.com/goldfire/howler.js/blob/master/BACKERS.md) list. All support is greatly appreciated!
-
-[![GoldFire Studios](https://s3.amazonaws.com/howler.js/sponsors/goldfire_studios.png "GoldFire Studios")](https://goldfirestudios.com)
-
 ### License
 
-Copyright (c) 2013-2021 [James Simpson](https://twitter.com/GoldFireStudios) and [GoldFire Studios, Inc.](http://goldfirestudios.com)
+Copyright (c) 2013-2020 James Simpson and GoldFire Studios, Inc.
 
-Released under the [MIT License](https://github.com/goldfire/howler.js/blob/master/LICENSE.md).
+Released under the [MIT License](./LICENSE.md).

@@ -1,6 +1,5 @@
 /*!
- *  Howler.js Audio Sprite Demo
- *  howlerjs.com
+ *  @nkzw/audio Audio Sprite Demo
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
  *  goldfirestudios.com
@@ -31,7 +30,7 @@ var Sprite = function(options) {
   self.setupListeners();
 
   // Create our audio sprite definition.
-  self.sound = new Howl({
+  self.sound = new NkzwAudio.Sound({
     src: options.src,
     sprite: options.sprite
   });

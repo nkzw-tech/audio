@@ -1,6 +1,5 @@
 /*!
- *  Howler.js 3D Sound Demo
- *  howlerjs.com
+ *  @nkzw/audio 3D Sound Demo
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
  *  goldfirestudios.com
@@ -14,8 +13,8 @@
  * Setup and control all of the game's audio.
  */
 var Sound = function() {
-  // Setup the shared Howl.
-  this.sound = new Howl({
+  // Setup the shared Sound.
+  this.sound = new NkzwAudio.Sound({
     src: ['./assets/sprite.webm', './assets/sprite.mp3'],
     sprite: {
       lightning: [2000, 4147],

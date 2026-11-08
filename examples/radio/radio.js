@@ -1,6 +1,5 @@
 /*!
- *  Howler.js Radio Demo
- *  howlerjs.com
+ *  @nkzw/audio Radio Demo
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
  *  goldfirestudios.com
@@ -17,7 +16,7 @@ elms.forEach(function(elm) {
 /**
  * Radio class containing the state of our stations.
  * Includes all methods for playing, stopping, etc.
- * @param {Array} stations Array of objects with station details ({title, src, howl, ...}).
+ * @param {Array} stations Array of objects with station details ({title, src, sound, ...}).
  */
 var Radio = function(stations) {
   var self = this;
@@ -29,13 +28,13 @@ var Radio = function(stations) {
   for (var i=0; i<self.stations.length; i++) {
     window['title' + i].innerHTML = '<b>' + self.stations[i].freq + '</b> ' + self.stations[i].title;
     window['station' + i].addEventListener('click', function(index) {
-      var isNotPlaying = (self.stations[index].howl && !self.stations[index].howl.playing());
+      var isNotPlaying = (self.stations[index].sound && !self.stations[index].sound.playing());
       
       // Stop other sounds or the current one.
       radio.stop();
 
       // If the station isn't already playing or it doesn't exist, play it.
-      if (isNotPlaying || !self.stations[index].howl) {
+      if (isNotPlaying || !self.stations[index].sound) {
         radio.play(index);
       }
     }.bind(self, i));
@@ -54,11 +53,11 @@ Radio.prototype = {
     var data = self.stations[index];
 
     // If we already loaded this track, use the current one.
-    // Otherwise, setup and load a new Howl.
-    if (data.howl) {
-      sound = data.howl;
+    // Otherwise, setup and load a new NkzwAudio.Sound.
+    if (data.sound) {
+      sound = data.sound;
     } else {
-      sound = data.howl = new Howl({
+      sound = data.sound = new NkzwAudio.Sound({
         src: data.src,
         html5: true, // A live stream can only be played through HTML5 Audio.
         format: ['mp3', 'aac']
@@ -81,8 +80,8 @@ Radio.prototype = {
   stop: function() {
     var self = this;
 
-    // Get the Howl we want to manipulate.
-    var sound = self.stations[self.index].howl;
+    // Get the Sound we want to manipulate.
+    var sound = self.stations[self.index].sound;
 
     // Toggle the display.
     self.toggleStationDisplay(self.index, false);
@@ -118,30 +117,30 @@ var radio = new Radio([
     freq: '81.4',
     title: "BBC Radio 1",
     src: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one',
-    howl: null
+    sound: null
   },
   {
     freq: '89.9',
     title: "Hip Hop Hits",
     src: 'https://streaming.radio.co/s97881c7e0/listen',
-    howl: null
+    sound: null
   },
   {
     freq: '98.9',
     title: "CNN",
     src: 'https://tunein.streamguys1.com/cnn-new',
-    howl: null
+    sound: null
   },
   {
     freq: '103.3',
     title: "80's Hits",
     src: 'https://rfcmedia.streamguys1.com/80hits.mp3',
-    howl: null
+    sound: null
   },
   {
     freq: '107.7',
     title: "Today's Hits",
     src: 'https://rfcmedia.streamguys1.com/MusicPulse.mp3',
-    howl: null
+    sound: null
   }
 ]);

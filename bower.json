@@ -1,10 +1,8 @@
 {
-  "name": "howler.js",
-  "description": "Javascript audio library for the modern web.",
-  "homepage": "https://howlerjs.com",
+  "name": "nkzw-audio",
+  "description": "Cross-platform audio playback for the web.",
+  "homepage": "https://github.com/nkzw-tech/audio",
   "keywords": [
-    "howler",
-    "howler.js",
     "audio",
     "sound",
     "web audio",
@@ -19,9 +17,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/goldfire/howler.js.git"
+    "url": "https://github.com/nkzw-tech/audio"
   },
-  "main": "dist/howler.js",
+  "main": "dist/audio.js",
   "license": "MIT",
   "moduleType": [
     "amd",

@@ -1,6 +1,5 @@
 /*!
- *  Howler.js 3D Sound Demo
- *  howlerjs.com
+ *  @nkzw/audio 3D Sound Demo
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
  *  goldfirestudios.com
@@ -26,7 +25,7 @@ var Player = function(x, y, dir, speed) {
   this.hand = new Texture('./assets/gun.png', 512, 360);
 
   // Update the position of the audio listener.
-  Howler.pos(this.x, this.y, -0.5);
+  NkzwAudio.Audio.pos(this.x, this.y, -0.5);
 
   // Update the direction and orientation.
   this.rotate(dir);
@@ -43,7 +42,7 @@ Player.prototype = {
     var x = Math.cos(this.dir);
     var y = 0;
     var z = Math.sin(this.dir);
-    Howler.orientation(x, y, z, 0, 1, 0);
+    NkzwAudio.Audio.orientation(x, y, z, 0, 1, 0);
   },
 
   /**
@@ -61,7 +60,7 @@ Player.prototype = {
     this.steps += dist;
 
     // Update the position of the audio listener.
-    Howler.pos(this.x, this.y, -0.5);
+    NkzwAudio.Audio.pos(this.x, this.y, -0.5);
   },
 
   /**

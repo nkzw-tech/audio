@@ -1,8 +1,7 @@
 /*!
  *  Spatial Plugin - Adds support for stereo and 3D audio where Web Audio is supported.
  *  
- *  howler.js v2.2.4
- *  howlerjs.com
+ *  @nkzw/audio v2.2.4
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
  *  goldfirestudios.com
@@ -10,24 +9,29 @@
  *  MIT License
  */
 
-(function() {
+(function(api) {
 
   'use strict';
 
+  var audio = api.Audio;
+  var Sound = api.Sound;
+  var AudioController = api.AudioController;
+  var SoundInstance = api.SoundInstance;
+
   // Setup default properties.
-  HowlerGlobal.prototype._pos = [0, 0, 0];
-  HowlerGlobal.prototype._orientation = [0, 0, -1, 0, 1, 0];
+  AudioController.prototype._pos = [0, 0, 0];
+  AudioController.prototype._orientation = [0, 0, -1, 0, 1, 0];
 
   /** Global Methods **/
   /***************************************************************************/
 
   /**
-   * Helper method to update the stereo panning position of all current Howls.
-   * Future Howls will not use this value unless explicitly set.
+   * Helper method to update the stereo panning position of all current Sounds.
+   * Future Sounds will not use this value unless explicitly set.
    * @param  {Number} pan A value of -1.0 is all the way left and 1.0 is all the way right.
-   * @return {Howler/Number}     Self or current stereo panning value.
+   * @return {audio/Number}     Self or current stereo panning value.
    */
-  HowlerGlobal.prototype.stereo = function(pan) {
+  AudioController.prototype.stereo = function(pan) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -35,9 +39,9 @@
       return self;
     }
 
-    // Loop through all Howls and update their stereo panning.
-    for (var i=self._howls.length-1; i>=0; i--) {
-      self._howls[i].stereo(pan);
+    // Loop through all Sounds and update their stereo panning.
+    for (var i=self._soundGroups.length-1; i>=0; i--) {
+      self._soundGroups[i].stereo(pan);
     }
 
     return self;
@@ -49,9 +53,9 @@
    * @param  {Number} x The x-position of the listener.
    * @param  {Number} y The y-position of the listener.
    * @param  {Number} z The z-position of the listener.
-   * @return {Howler/Array}   Self or current listener position.
+   * @return {audio/Array}   Self or current listener position.
    */
-  HowlerGlobal.prototype.pos = function(x, y, z) {
+  AudioController.prototype.pos = function(x, y, z) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -67,9 +71,9 @@
       self._pos = [x, y, z];
 
       if (typeof self.ctx.listener.positionX !== 'undefined') {
-        self.ctx.listener.positionX.setTargetAtTime(self._pos[0], Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.positionY.setTargetAtTime(self._pos[1], Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.positionZ.setTargetAtTime(self._pos[2], Howler.ctx.currentTime, 0.1);
+        self.ctx.listener.positionX.setTargetAtTime(self._pos[0], audio.ctx.currentTime, 0.1);
+        self.ctx.listener.positionY.setTargetAtTime(self._pos[1], audio.ctx.currentTime, 0.1);
+        self.ctx.listener.positionZ.setTargetAtTime(self._pos[2], audio.ctx.currentTime, 0.1);
       } else {
         self.ctx.listener.setPosition(self._pos[0], self._pos[1], self._pos[2]);
       }
@@ -92,9 +96,9 @@
    * @param  {Number} xUp The x-orientation of the top of the listener.
    * @param  {Number} yUp The y-orientation of the top of the listener.
    * @param  {Number} zUp The z-orientation of the top of the listener.
-   * @return {Howler/Array}     Returns self or the current orientation vectors.
+   * @return {audio/Array}     Returns self or the current orientation vectors.
    */
-  HowlerGlobal.prototype.orientation = function(x, y, z, xUp, yUp, zUp) {
+  AudioController.prototype.orientation = function(x, y, z, xUp, yUp, zUp) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -114,12 +118,12 @@
       self._orientation = [x, y, z, xUp, yUp, zUp];
 
       if (typeof self.ctx.listener.forwardX !== 'undefined') {
-        self.ctx.listener.forwardX.setTargetAtTime(x, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.forwardY.setTargetAtTime(y, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.forwardZ.setTargetAtTime(z, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.upX.setTargetAtTime(xUp, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.upY.setTargetAtTime(yUp, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.upZ.setTargetAtTime(zUp, Howler.ctx.currentTime, 0.1);
+        self.ctx.listener.forwardX.setTargetAtTime(x, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.forwardY.setTargetAtTime(y, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.forwardZ.setTargetAtTime(z, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.upX.setTargetAtTime(xUp, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.upY.setTargetAtTime(yUp, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.upZ.setTargetAtTime(zUp, audio.ctx.currentTime, 0.1);
       } else {
         self.ctx.listener.setOrientation(x, y, z, xUp, yUp, zUp);
       }
@@ -136,9 +140,9 @@
   /**
    * Add new properties to the core init.
    * @param  {Function} _super Core init method.
-   * @return {Howl}
+   * @return {Sound}
    */
-  Howl.prototype.init = (function(_super) {
+  Sound.prototype.init = (function(_super) {
     return function(o) {
       var self = this;
 
@@ -162,18 +166,18 @@
       self._onpos = o.onpos ? [{fn: o.onpos}] : [];
       self._onorientation = o.onorientation ? [{fn: o.onorientation}] : [];
 
-      // Complete initilization with howler.js core's init function.
+      // Complete initilization with core's init function.
       return _super.call(this, o);
     };
-  })(Howl.prototype.init);
+  })(Sound.prototype.init);
 
   /**
    * Get/set the stereo panning of the audio source for this sound or all in the group.
    * @param  {Number} pan  A value of -1.0 is all the way left and 1.0 is all the way right.
    * @param  {Number} id (optional) The sound ID. If none is passed, all in group will be updated.
-   * @return {Howl/Number}    Returns self or the current stereo panning value.
+   * @return {Sound/Number}    Returns self or the current stereo panning value.
    */
-  Howl.prototype.stereo = function(pan, id) {
+  Sound.prototype.stereo = function(pan, id) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -194,7 +198,7 @@
     }
 
     // Check for PannerStereoNode support and fallback to PannerNode if it doesn't exist.
-    var pannerType = (typeof Howler.ctx.createStereoPanner === 'undefined') ? 'spatial' : 'stereo';
+    var pannerType = (typeof audio.ctx.createStereoPanner === 'undefined') ? 'spatial' : 'stereo';
 
     // Setup the group's stereo panning if no ID is passed.
     if (typeof id === 'undefined') {
@@ -229,14 +233,14 @@
 
             if (pannerType === 'spatial') {
               if (typeof sound._panner.positionX !== 'undefined') {
-                sound._panner.positionX.setValueAtTime(pan, Howler.ctx.currentTime);
-                sound._panner.positionY.setValueAtTime(0, Howler.ctx.currentTime);
-                sound._panner.positionZ.setValueAtTime(0, Howler.ctx.currentTime);
+                sound._panner.positionX.setValueAtTime(pan, audio.ctx.currentTime);
+                sound._panner.positionY.setValueAtTime(0, audio.ctx.currentTime);
+                sound._panner.positionZ.setValueAtTime(0, audio.ctx.currentTime);
               } else {
                 sound._panner.setPosition(pan, 0, 0);
               }
             } else {
-              sound._panner.pan.setValueAtTime(pan, Howler.ctx.currentTime);
+              sound._panner.pan.setValueAtTime(pan, audio.ctx.currentTime);
             }
           }
 
@@ -256,9 +260,9 @@
    * @param  {Number} y  The y-position of the audio source.
    * @param  {Number} z  The z-position of the audio source.
    * @param  {Number} id (optional) The sound ID. If none is passed, all in group will be updated.
-   * @return {Howl/Array}    Returns self or the current 3D spatial position: [x, y, z].
+   * @return {Sound/Array}    Returns self or the current 3D spatial position: [x, y, z].
    */
-  Howl.prototype.pos = function(x, y, z, id) {
+  Sound.prototype.pos = function(x, y, z, id) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -309,9 +313,9 @@
             }
 
             if (typeof sound._panner.positionX !== 'undefined') {
-              sound._panner.positionX.setValueAtTime(x, Howler.ctx.currentTime);
-              sound._panner.positionY.setValueAtTime(y, Howler.ctx.currentTime);
-              sound._panner.positionZ.setValueAtTime(z, Howler.ctx.currentTime);
+              sound._panner.positionX.setValueAtTime(x, audio.ctx.currentTime);
+              sound._panner.positionY.setValueAtTime(y, audio.ctx.currentTime);
+              sound._panner.positionZ.setValueAtTime(z, audio.ctx.currentTime);
             } else {
               sound._panner.setPosition(x, y, z);
             }
@@ -335,9 +339,9 @@
    * @param  {Number} y  The y-orientation of the source.
    * @param  {Number} z  The z-orientation of the source.
    * @param  {Number} id (optional) The sound ID. If none is passed, all in group will be updated.
-   * @return {Howl/Array}    Returns self or the current 3D spatial orientation: [x, y, z].
+   * @return {Sound/Array}    Returns self or the current 3D spatial orientation: [x, y, z].
    */
-  Howl.prototype.orientation = function(x, y, z, id) {
+  Sound.prototype.orientation = function(x, y, z, id) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -393,9 +397,9 @@
             }
 
             if (typeof sound._panner.orientationX !== 'undefined') {
-              sound._panner.orientationX.setValueAtTime(x, Howler.ctx.currentTime);
-              sound._panner.orientationY.setValueAtTime(y, Howler.ctx.currentTime);
-              sound._panner.orientationZ.setValueAtTime(z, Howler.ctx.currentTime);
+              sound._panner.orientationX.setValueAtTime(x, audio.ctx.currentTime);
+              sound._panner.orientationY.setValueAtTime(y, audio.ctx.currentTime);
+              sound._panner.orientationZ.setValueAtTime(z, audio.ctx.currentTime);
             } else {
               sound._panner.setOrientation(x, y, z);
             }
@@ -416,7 +420,7 @@
    * This method can optionall take 0, 1 or 2 arguments.
    *   pannerAttr() -> Returns the group's values.
    *   pannerAttr(id) -> Returns the sound id's values.
-   *   pannerAttr(o) -> Set's the values of all sounds in this Howl group.
+   *   pannerAttr(o) -> Set's the values of all sounds in this Sound group.
    *   pannerAttr(o, id) -> Set's the values of passed sound id.
    *
    *   Attributes:
@@ -439,9 +443,9 @@
    *     panningModel - ('HRTF' by default) Determines which spatialization algorithm is used to position audio.
    *                     Can be `HRTF` or `equalpower`.
    *
-   * @return {Howl/Object} Returns self or current panner attributes.
+   * @return {Sound/Object} Returns self or current panner attributes.
    */
-  Howl.prototype.pannerAttr = function() {
+  Sound.prototype.pannerAttr = function() {
     var self = this;
     var args = arguments;
     var o, id, sound;
@@ -542,15 +546,15 @@
     return self;
   };
 
-  /** Single Sound Methods **/
+  /** Single SoundInstance Methods **/
   /***************************************************************************/
 
   /**
-   * Add new properties to the core Sound init.
-   * @param  {Function} _super Core Sound init method.
-   * @return {Sound}
+   * Add new properties to the core SoundInstance init.
+   * @param  {Function} _super Core SoundInstance init method.
+   * @return {SoundInstance}
    */
-  Sound.prototype.init = (function(_super) {
+  SoundInstance.prototype.init = (function(_super) {
     return function() {
       var self = this;
       var parent = self._parent;
@@ -561,7 +565,7 @@
       self._pos = parent._pos;
       self._pannerAttr = parent._pannerAttr;
 
-      // Complete initilization with howler.js core Sound's init function.
+      // Complete initilization with core SoundInstance's init function.
       _super.call(this);
 
       // If a stereo or position was specified, set it up.
@@ -571,14 +575,14 @@
         parent.pos(self._pos[0], self._pos[1], self._pos[2], self._id);
       }
     };
-  })(Sound.prototype.init);
+  })(SoundInstance.prototype.init);
 
   /**
-   * Override the Sound.reset method to clean up properties from the spatial plugin.
-   * @param  {Function} _super Sound reset method.
-   * @return {Sound}
+   * Override the SoundInstance.reset method to clean up properties from the spatial plugin.
+   * @param  {Function} _super SoundInstance reset method.
+   * @return {SoundInstance}
    */
-  Sound.prototype.reset = (function(_super) {
+  SoundInstance.prototype.reset = (function(_super) {
     return function() {
       var self = this;
       var parent = self._parent;
@@ -604,14 +608,14 @@
       // Complete resetting of the sound.
       return _super.call(this);
     };
-  })(Sound.prototype.reset);
+  })(SoundInstance.prototype.reset);
 
   /** Helper Methods **/
   /***************************************************************************/
 
   /**
    * Create a new panner node and save it on the sound.
-   * @param  {Sound} sound Specific sound to setup panning on.
+   * @param  {SoundInstance} sound Specific sound to setup panning on.
    * @param {String} type Type of panner to create: 'stereo' or 'spatial'.
    */
   var setupPanner = function(sound, type) {
@@ -619,7 +623,7 @@
 
     // Create the new panner node.
     if (type === 'spatial') {
-      sound._panner = Howler.ctx.createPanner();
+      sound._panner = audio.ctx.createPanner();
       sound._panner.coneInnerAngle = sound._pannerAttr.coneInnerAngle;
       sound._panner.coneOuterAngle = sound._pannerAttr.coneOuterAngle;
       sound._panner.coneOuterGain = sound._pannerAttr.coneOuterGain;
@@ -630,23 +634,23 @@
       sound._panner.panningModel = sound._pannerAttr.panningModel;
 
       if (typeof sound._panner.positionX !== 'undefined') {
-        sound._panner.positionX.setValueAtTime(sound._pos[0], Howler.ctx.currentTime);
-        sound._panner.positionY.setValueAtTime(sound._pos[1], Howler.ctx.currentTime);
-        sound._panner.positionZ.setValueAtTime(sound._pos[2], Howler.ctx.currentTime);
+        sound._panner.positionX.setValueAtTime(sound._pos[0], audio.ctx.currentTime);
+        sound._panner.positionY.setValueAtTime(sound._pos[1], audio.ctx.currentTime);
+        sound._panner.positionZ.setValueAtTime(sound._pos[2], audio.ctx.currentTime);
       } else {
         sound._panner.setPosition(sound._pos[0], sound._pos[1], sound._pos[2]);
       }
 
       if (typeof sound._panner.orientationX !== 'undefined') {
-        sound._panner.orientationX.setValueAtTime(sound._orientation[0], Howler.ctx.currentTime);
-        sound._panner.orientationY.setValueAtTime(sound._orientation[1], Howler.ctx.currentTime);
-        sound._panner.orientationZ.setValueAtTime(sound._orientation[2], Howler.ctx.currentTime);
+        sound._panner.orientationX.setValueAtTime(sound._orientation[0], audio.ctx.currentTime);
+        sound._panner.orientationY.setValueAtTime(sound._orientation[1], audio.ctx.currentTime);
+        sound._panner.orientationZ.setValueAtTime(sound._orientation[2], audio.ctx.currentTime);
       } else {
         sound._panner.setOrientation(sound._orientation[0], sound._orientation[1], sound._orientation[2]);
       }
     } else {
-      sound._panner = Howler.ctx.createStereoPanner();
-      sound._panner.pan.setValueAtTime(sound._stereo, Howler.ctx.currentTime);
+      sound._panner = audio.ctx.createStereoPanner();
+      sound._panner.pan.setValueAtTime(sound._stereo, audio.ctx.currentTime);
     }
 
     sound._panner.connect(sound._node);
@@ -656,4 +660,4 @@
       sound._parent.pause(sound._id, true).play(sound._id, true);
     }
   };
-})();
+})(typeof global !== 'undefined' ? global.NkzwAudio : window.NkzwAudio);

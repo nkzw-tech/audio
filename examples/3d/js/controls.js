@@ -1,6 +1,5 @@
 /*!
- *  Howler.js 3D Sound Demo
- *  howlerjs.com
+ *  @nkzw/audio 3D Sound Demo
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
  *  goldfirestudios.com

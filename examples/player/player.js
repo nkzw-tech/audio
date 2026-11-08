@@ -1,6 +1,5 @@
 /*!
- *  Howler.js Audio Player Demo
- *  howlerjs.com
+ *  @nkzw/audio Audio Player Demo
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
  *  goldfirestudios.com
@@ -17,7 +16,7 @@ elms.forEach(function(elm) {
 /**
  * Player class containing the state of our playlist and where we are in it.
  * Includes all methods for playing, skipping, updating the display, etc.
- * @param {Array} playlist Array of objects with playlist song details ({title, file, howl}).
+ * @param {Array} playlist Array of objects with playlist song details ({title, file, sound}).
  */
 var Player = function(playlist) {
   this.playlist = playlist;
@@ -50,11 +49,11 @@ Player.prototype = {
     var data = self.playlist[index];
 
     // If we already loaded this track, use the current one.
-    // Otherwise, setup and load a new Howl.
-    if (data.howl) {
-      sound = data.howl;
+    // Otherwise, setup and load a new NkzwAudio.Sound.
+    if (data.sound) {
+      sound = data.sound;
     } else {
-      sound = data.howl = new Howl({
+      sound = data.sound = new NkzwAudio.Sound({
         src: ['./audio/' + data.file + '.webm', './audio/' + data.file + '.mp3'],
         html5: true, // Force to HTML5 so that the audio can stream in (best for large files).
         onplay: function() {
@@ -124,8 +123,8 @@ Player.prototype = {
   pause: function() {
     var self = this;
 
-    // Get the Howl we want to manipulate.
-    var sound = self.playlist[self.index].howl;
+    // Get the Sound we want to manipulate.
+    var sound = self.playlist[self.index].sound;
 
     // Puase the sound.
     sound.pause();
@@ -167,8 +166,8 @@ Player.prototype = {
     var self = this;
 
     // Stop the current track.
-    if (self.playlist[self.index].howl) {
-      self.playlist[self.index].howl.stop();
+    if (self.playlist[self.index].sound) {
+      self.playlist[self.index].sound.stop();
     }
 
     // Reset progress.
@@ -185,8 +184,8 @@ Player.prototype = {
   volume: function(val) {
     var self = this;
 
-    // Update the global volume (affecting all Howls).
-    Howler.volume(val);
+    // Update the global volume (affecting all Sound).
+    NkzwAudio.Audio.volume(val);
 
     // Update the display on the slider.
     var barWidth = (val * 90) / 100;
@@ -201,8 +200,8 @@ Player.prototype = {
   seek: function(per) {
     var self = this;
 
-    // Get the Howl we want to manipulate.
-    var sound = self.playlist[self.index].howl;
+    // Get the Sound we want to manipulate.
+    var sound = self.playlist[self.index].sound;
 
     // Convert the percent into a seek position.
     if (sound.playing()) {
@@ -216,8 +215,8 @@ Player.prototype = {
   step: function() {
     var self = this;
 
-    // Get the Howl we want to manipulate.
-    var sound = self.playlist[self.index].howl;
+    // Get the Sound we want to manipulate.
+    var sound = self.playlist[self.index].sound;
 
     // Determine our current seek position.
     var seek = sound.seek() || 0;
@@ -274,17 +273,17 @@ var player = new Player([
   {
     title: 'Rave Digger',
     file: 'rave_digger',
-    howl: null
+    sound: null
   },
   {
     title: '80s Vibe',
     file: '80s_vibe',
-    howl: null
+    sound: null
   },
   {
     title: 'Running Out',
     file: 'running_out',
-    howl: null
+    sound: null
   }
 ]);
 
@@ -376,7 +375,7 @@ var resize = function() {
   wave.container.style.margin = -(height / 2) + 'px auto';
 
   // Update the position of the slider.
-  var sound = player.playlist[player.index].howl;
+  var sound = player.playlist[player.index].sound;
   if (sound) {
     var vol = sound.volume();
     var barWidth = (vol * 0.9);

@@ -6,7 +6,6 @@ body:
     attributes:
       value: |
         Need help or support? Please don't open an issue!
-        Head to [Stack Overflow](https://stackoverflow.com/questions/tagged/howler.js) or [Discussions](https://github.com/goldfire/howler.js/discussions).
 
   - type: textarea
     attributes:
@@ -39,8 +38,8 @@ body:
 
   - type: input
     attributes:
-      label: Howler.js Version
-      description: Which version of `howler.js` are you using?
+      label: Package version
+      description: Which version of `@nkzw/audio` are you using?
       placeholder: "v0.0.0"
     validations:
       required: true

@@ -1,6 +1,5 @@
 /*!
- *  howler.js v2.2.4
- *  howlerjs.com
+ *  @nkzw/audio v2.2.4
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
  *  goldfirestudios.com
@@ -19,16 +18,16 @@
    * Create the global controller. All contained methods and properties apply
    * to all sounds that are currently playing or will be in the future.
    */
-  var HowlerGlobal = function() {
+  var AudioController = function() {
     this.init();
   };
-  HowlerGlobal.prototype = {
+  AudioController.prototype = {
     /**
-     * Initialize the global Howler object.
-     * @return {Howler}
+     * Initialize the global audio object.
+     * @return {audio}
      */
     init: function() {
-      var self = this || Howler;
+      var self = this || audio;
 
       // Create a global ID counter.
       self._counter = 1000;
@@ -39,7 +38,7 @@
 
       // Internal properties.
       self._codecs = {};
-      self._howls = [];
+      self._soundGroups = [];
       self._muted = false;
       self._volume = 1;
       self._canPlayEvent = 'canplaythrough';
@@ -64,10 +63,10 @@
     /**
      * Get/set the global volume for all sounds.
      * @param  {Float} vol Volume from 0.0 to 1.0.
-     * @return {Howler/Float}     Returns self or current volume.
+     * @return {audio/Float}     Returns self or current volume.
      */
     volume: function(vol) {
-      var self = this || Howler;
+      var self = this || audio;
       vol = parseFloat(vol);
 
       // If we don't have an AudioContext created yet, run the setup.
@@ -85,18 +84,18 @@
 
         // When using Web Audio, we just need to adjust the master gain.
         if (self.usingWebAudio) {
-          self.masterGain.gain.setValueAtTime(vol, Howler.ctx.currentTime);
+          self.masterGain.gain.setValueAtTime(vol, audio.ctx.currentTime);
         }
 
         // Loop through and change volume for all HTML5 audio nodes.
-        for (var i=0; i<self._howls.length; i++) {
-          if (!self._howls[i]._webAudio) {
-            // Get all of the sounds in this Howl group.
-            var ids = self._howls[i]._getSoundIds();
+        for (var i=0; i<self._soundGroups.length; i++) {
+          if (!self._soundGroups[i]._webAudio) {
+            // Get all of the sounds in this Sound group.
+            var ids = self._soundGroups[i]._getSoundIds();
 
             // Loop through all sounds and change the volumes.
             for (var j=0; j<ids.length; j++) {
-              var sound = self._howls[i]._soundById(ids[j]);
+              var sound = self._soundGroups[i]._soundById(ids[j]);
 
               if (sound && sound._node) {
                 sound._node.volume = sound._volume * vol;
@@ -116,7 +115,7 @@
      * @param  {Boolean} muted Is muted or not.
      */
     mute: function(muted) {
-      var self = this || Howler;
+      var self = this || audio;
 
       // If we don't have an AudioContext created yet, run the setup.
       if (!self.ctx) {
@@ -127,18 +126,18 @@
 
       // With Web Audio, we just need to mute the master gain.
       if (self.usingWebAudio) {
-        self.masterGain.gain.setValueAtTime(muted ? 0 : self._volume, Howler.ctx.currentTime);
+        self.masterGain.gain.setValueAtTime(muted ? 0 : self._volume, audio.ctx.currentTime);
       }
 
       // Loop through and mute all HTML5 Audio nodes.
-      for (var i=0; i<self._howls.length; i++) {
-        if (!self._howls[i]._webAudio) {
-          // Get all of the sounds in this Howl group.
-          var ids = self._howls[i]._getSoundIds();
+      for (var i=0; i<self._soundGroups.length; i++) {
+        if (!self._soundGroups[i]._webAudio) {
+          // Get all of the sounds in this Sound group.
+          var ids = self._soundGroups[i]._getSoundIds();
 
           // Loop through all sounds and mark the audio node as muted.
           for (var j=0; j<ids.length; j++) {
-            var sound = self._howls[i]._soundById(ids[j]);
+            var sound = self._soundGroups[i]._soundById(ids[j]);
 
             if (sound && sound._node) {
               sound._node.muted = (muted) ? true : sound._muted;
@@ -154,25 +153,25 @@
      * Handle stopping all sounds globally.
      */
     stop: function() {
-      var self = this || Howler;
+      var self = this || audio;
 
-      // Loop through all Howls and stop them.
-      for (var i=0; i<self._howls.length; i++) {
-        self._howls[i].stop();
+      // Loop through all Sounds and stop them.
+      for (var i=0; i<self._soundGroups.length; i++) {
+        self._soundGroups[i].stop();
       }
 
       return self;
     },
 
     /**
-     * Unload and destroy all currently loaded Howl objects.
-     * @return {Howler}
+     * Unload and destroy all currently loaded Sound objects.
+     * @return {audio}
      */
     unload: function() {
-      var self = this || Howler;
+      var self = this || audio;
 
-      for (var i=self._howls.length-1; i>=0; i--) {
-        self._howls[i].unload();
+      for (var i=self._soundGroups.length-1; i>=0; i--) {
+        self._soundGroups[i].unload();
       }
 
       // Create a new AudioContext to make sure it is fully reset.
@@ -191,15 +190,15 @@
      * @return {Boolean}
      */
     codecs: function(ext) {
-      return (this || Howler)._codecs[ext.replace(/^x-/, '')];
+      return (this || audio)._codecs[ext.replace(/^x-/, '')];
     },
 
     /**
      * Setup various state values for global tracking.
-     * @return {Howler}
+     * @return {audio}
      */
     _setup: function() {
-      var self = this || Howler;
+      var self = this || audio;
 
       // Keeps track of the suspend/resume state of the AudioContext.
       self.state = self.ctx ? self.ctx.state || 'suspended' : 'suspended';
@@ -244,10 +243,10 @@
 
     /**
      * Check for browser support for various codecs and cache the results.
-     * @return {Howler}
+     * @return {audio}
      */
     _setupCodecs: function() {
-      var self = this || Howler;
+      var self = this || audio;
       var audioTest = null;
 
       // Must wrap in a try/catch because IE11 in server mode throws an error.
@@ -296,10 +295,10 @@
      * Some browsers/devices will only allow audio to be played after a user interaction.
      * Attempt to automatically unlock audio on the first user interaction.
      * Concept from: http://paulbakaus.com/tutorials/html5/web-audio-on-ios/
-     * @return {Howler}
+     * @return {audio}
      */
     _unlockAudio: function() {
-      var self = this || Howler;
+      var self = this || audio;
 
       // Only run this if Web Audio is supported and it hasn't already been unlocked.
       if (self._audioUnlocked || !self.ctx) {
@@ -311,7 +310,7 @@
 
       // Some mobile devices/platforms have distortion issues when opening/closing tabs and/or web views.
       // Bugs in the browser (especially Mobile Safari) can cause the sampleRate to change from 44100 to 48000.
-      // By calling Howler.unload(), we create a new AudioContext with the correct sampleRate.
+      // By calling audio.unload(), we create a new AudioContext with the correct sampleRate.
       if (!self._mobileUnloaded && self.ctx.sampleRate !== 44100) {
         self._mobileUnloaded = true;
         self.unload();
@@ -348,14 +347,14 @@
         }
 
         // Loop through any assigned audio nodes and unlock them.
-        for (var i=0; i<self._howls.length; i++) {
-          if (!self._howls[i]._webAudio) {
-            // Get all of the sounds in this Howl group.
-            var ids = self._howls[i]._getSoundIds();
+        for (var i=0; i<self._soundGroups.length; i++) {
+          if (!self._soundGroups[i]._webAudio) {
+            // Get all of the sounds in this Sound group.
+            var ids = self._soundGroups[i]._getSoundIds();
 
             // Loop through all sounds and unlock the audio nodes.
             for (var j=0; j<ids.length; j++) {
-              var sound = self._howls[i]._soundById(ids[j]);
+              var sound = self._soundGroups[i]._soundById(ids[j]);
 
               if (sound && sound._node && !sound._node._unlocked) {
                 sound._node._unlocked = true;
@@ -399,8 +398,8 @@
           document.removeEventListener('keydown', unlock, true);
 
           // Let all sounds know that audio has been unlocked.
-          for (var i=0; i<self._howls.length; i++) {
-            self._howls[i]._emit('unlock');
+          for (var i=0; i<self._soundGroups.length; i++) {
+            self._soundGroups[i]._emit('unlock');
           }
         };
       };
@@ -420,7 +419,7 @@
      * @return {Audio} HTML5 Audio object.
      */
     _obtainHtml5Audio: function() {
-      var self = this || Howler;
+      var self = this || audio;
 
       // Return the next object from the pool if one exists.
       if (self._html5AudioPool.length) {
@@ -440,10 +439,10 @@
 
     /**
      * Return an activated HTML5 Audio object to the pool.
-     * @return {Howler}
+     * @return {audio}
      */
     _releaseHtml5Audio: function(audio) {
-      var self = this || Howler;
+      var self = this || audio;
 
       // Don't add audio to the pool if we don't know if it has been unlocked.
       if (audio._unlocked) {
@@ -456,20 +455,20 @@
     /**
      * Automatically suspend the Web Audio AudioContext after no sound has played for 30 seconds.
      * This saves processing/energy and fixes various browser-specific bugs with audio getting stuck.
-     * @return {Howler}
+     * @return {audio}
      */
     _autoSuspend: function() {
       var self = this;
 
-      if (!self.autoSuspend || !self.ctx || typeof self.ctx.suspend === 'undefined' || !Howler.usingWebAudio) {
+      if (!self.autoSuspend || !self.ctx || typeof self.ctx.suspend === 'undefined' || !audio.usingWebAudio) {
         return;
       }
 
       // Check if any sounds are playing.
-      for (var i=0; i<self._howls.length; i++) {
-        if (self._howls[i]._webAudio) {
-          for (var j=0; j<self._howls[i]._sounds.length; j++) {
-            if (!self._howls[i]._sounds[j]._paused) {
+      for (var i=0; i<self._soundGroups.length; i++) {
+        if (self._soundGroups[i]._webAudio) {
+          for (var j=0; j<self._soundGroups[i]._sounds.length; j++) {
+            if (!self._soundGroups[i]._sounds[j]._paused) {
               return self;
             }
           }
@@ -509,12 +508,12 @@
 
     /**
      * Automatically resume the Web Audio AudioContext when a new sound is played.
-     * @return {Howler}
+     * @return {audio}
      */
     _autoResume: function() {
       var self = this;
 
-      if (!self.ctx || typeof self.ctx.resume === 'undefined' || !Howler.usingWebAudio) {
+      if (!self.ctx || typeof self.ctx.resume === 'undefined' || !audio.usingWebAudio) {
         return;
       }
 
@@ -525,9 +524,9 @@
         self.ctx.resume().then(function() {
           self.state = 'running';
 
-          // Emit to all Howls that the audio has resumed.
-          for (var i=0; i<self._howls.length; i++) {
-            self._howls[i]._emit('resume');
+          // Emit to all Sounds that the audio has resumed.
+          for (var i=0; i<self._soundGroups.length; i++) {
+            self._soundGroups[i]._emit('resume');
           }
         });
 
@@ -544,7 +543,7 @@
   };
 
   // Setup the global audio controller.
-  var Howler = new HowlerGlobal();
+  var audio = new AudioController();
 
   /** Group Methods **/
   /***************************************************************************/
@@ -553,28 +552,28 @@
    * Create an audio group controller.
    * @param {Object} o Passed in properties for this group.
    */
-  var Howl = function(o) {
+  var Sound = function(o) {
     var self = this;
 
     // Throw an error if no source is provided.
     if (!o.src || o.src.length === 0) {
-      console.error('An array of source files must be passed with any new Howl.');
+      console.error('An array of source files must be passed with any new Sound.');
       return;
     }
 
     self.init(o);
   };
-  Howl.prototype = {
+  Sound.prototype = {
     /**
-     * Initialize a new Howl group object.
+     * Initialize a new Sound group object.
      * @param  {Object} o Passed in properties for this group.
-     * @return {Howl}
+     * @return {Sound}
      */
     init: function(o) {
       var self = this;
 
       // If we don't have an AudioContext created yet, run the setup.
-      if (!Howler.ctx) {
+      if (!audio.ctx) {
         setupAudioContext();
       }
 
@@ -621,15 +620,15 @@
       self._onresume = [];
 
       // Web Audio or HTML5 Audio?
-      self._webAudio = Howler.usingWebAudio && !self._html5;
+      self._webAudio = audio.usingWebAudio && !self._html5;
 
       // Automatically try to enable audio.
-      if (typeof Howler.ctx !== 'undefined' && Howler.ctx && Howler.autoUnlock) {
-        Howler._unlockAudio();
+      if (typeof audio.ctx !== 'undefined' && audio.ctx && audio.autoUnlock) {
+        audio._unlockAudio();
       }
 
-      // Keep track of this Howl group in the global controller.
-      Howler._howls.push(self);
+      // Keep track of this Sound group in the global controller.
+      audio._soundGroups.push(self);
 
       // If they selected autoplay, add a play event to the load queue.
       if (self._autoplay) {
@@ -651,14 +650,14 @@
 
     /**
      * Load the audio file.
-     * @return {Howler}
+     * @return {audio}
      */
     load: function() {
       var self = this;
       var url = null;
 
       // If no audio is available, quit immediately.
-      if (Howler.noAudio) {
+      if (audio.noAudio) {
         self._emit('loaderror', null, 'No audio support.');
         return;
       }
@@ -700,7 +699,7 @@
         }
 
         // Check if this extension is available.
-        if (ext && Howler.codecs(ext)) {
+        if (ext && audio.codecs(ext)) {
           url = self._src[i];
           break;
         }
@@ -722,7 +721,7 @@
       }
 
       // Create a new sound object and add it to the pool.
-      new Sound(self);
+      new SoundInstance(self);
 
       // Load and decode the audio data for playback.
       if (self._webAudio) {
@@ -736,7 +735,7 @@
      * Play a sound or resume previous playback.
      * @param  {String/Number} sprite   Sprite name for sprite playback or sound id to continue previous.
      * @param  {Boolean} internal Internal Use: true prevents event firing.
-     * @return {Number}          Sound ID.
+     * @return {Number}          SoundInstance ID.
      */
     play: function(sprite, internal) {
       var self = this;
@@ -819,7 +818,7 @@
 
       // Make sure the AudioContext isn't suspended, and resume it if it is.
       if (self._webAudio) {
-        Howler._autoResume();
+        audio._autoResume();
       }
 
       // Determine how long to play for and where to start playing.
@@ -860,8 +859,8 @@
 
           // Setup the playback params.
           var vol = (sound._muted || self._muted) ? 0 : sound._volume;
-          node.gain.setValueAtTime(vol, Howler.ctx.currentTime);
-          sound._playStart = Howler.ctx.currentTime;
+          node.gain.setValueAtTime(vol, audio.ctx.currentTime);
+          sound._playStart = audio.ctx.currentTime;
 
           // Play the sound using the supported method.
           if (typeof node.bufferSource.start === 'undefined') {
@@ -883,7 +882,7 @@
           }
         };
 
-        if (Howler.state === 'running' && Howler.ctx.state !== 'interrupted') {
+        if (audio.state === 'running' && audio.ctx.state !== 'interrupted') {
           playWebAudio();
         } else {
           self._playLock = true;
@@ -898,8 +897,8 @@
         // Fire this when the sound is ready to play to begin HTML5 Audio playback.
         var playHtml5 = function() {
           node.currentTime = seek;
-          node.muted = sound._muted || self._muted || Howler._muted || node.muted;
-          node.volume = sound._volume * Howler.volume();
+          node.muted = sound._muted || self._muted || audio._muted || node.muted;
+          node.volume = sound._volume * audio.volume();
           node.playbackRate = sound._rate;
 
           // Some browsers will throw an error if this is called without user interaction.
@@ -975,7 +974,7 @@
         }
 
         // Play immediately if ready, or wait for the 'canplaythrough'e vent.
-        var loadedNoReadyState = (window && window.ejecta) || (!node.readyState && Howler._navigator.isCocoonJS);
+        var loadedNoReadyState = (window && window.ejecta) || (!node.readyState && audio._navigator.isCocoonJS);
         if (node.readyState >= 3 || loadedNoReadyState) {
           playHtml5();
         } else {
@@ -989,9 +988,9 @@
             playHtml5();
 
             // Clear this listener.
-            node.removeEventListener(Howler._canPlayEvent, listener, false);
+            node.removeEventListener(audio._canPlayEvent, listener, false);
           };
-          node.addEventListener(Howler._canPlayEvent, listener, false);
+          node.addEventListener(audio._canPlayEvent, listener, false);
 
           // Cancel the end timer.
           self._clearTimer(sound._id);
@@ -1004,7 +1003,7 @@
     /**
      * Pause playback and save current position.
      * @param  {Number} id The sound ID (empty to pause all in group).
-     * @return {Howl}
+     * @return {Sound}
      */
     pause: function(id) {
       var self = this;
@@ -1074,7 +1073,7 @@
      * Stop playback and reset to start.
      * @param  {Number} id The sound ID (empty to stop all in group).
      * @param  {Boolean} internal Internal Use: true prevents event firing.
-     * @return {Howl}
+     * @return {Sound}
      */
     stop: function(id, internal) {
       var self = this;
@@ -1145,10 +1144,10 @@
     },
 
     /**
-     * Mute/unmute a single sound or all sounds in this Howl group.
+     * Mute/unmute a single sound or all sounds in this Sound group.
      * @param  {Boolean} muted Set to true to mute and false to unmute.
      * @param  {Number} id    The sound ID to update (omit to mute/unmute all).
-     * @return {Howl}
+     * @return {Sound}
      */
     mute: function(muted, id) {
       var self = this;
@@ -1190,9 +1189,9 @@
           }
 
           if (self._webAudio && sound._node) {
-            sound._node.gain.setValueAtTime(muted ? 0 : sound._volume, Howler.ctx.currentTime);
+            sound._node.gain.setValueAtTime(muted ? 0 : sound._volume, audio.ctx.currentTime);
           } else if (sound._node) {
-            sound._node.muted = Howler._muted ? true : muted;
+            sound._node.muted = audio._muted ? true : muted;
           }
 
           self._emit('mute', sound._id);
@@ -1203,12 +1202,12 @@
     },
 
     /**
-     * Get/set the volume of this sound or of the Howl group. This method can optionally take 0, 1 or 2 arguments.
+     * Get/set the volume of this sound or of the Sound group. This method can optionally take 0, 1 or 2 arguments.
      *   volume() -> Returns the group's volume value.
      *   volume(id) -> Returns the sound id's current volume.
-     *   volume(vol) -> Sets the volume of all sounds in this Howl group.
+     *   volume(vol) -> Sets the volume of all sounds in this Sound group.
      *   volume(vol, id) -> Sets the volume of passed sound id.
-     * @return {Howl/Number} Returns self or current volume.
+     * @return {Sound/Number} Returns self or current volume.
      */
     volume: function() {
       var self = this;
@@ -1268,9 +1267,9 @@
             }
 
             if (self._webAudio && sound._node && !sound._muted) {
-              sound._node.gain.setValueAtTime(vol, Howler.ctx.currentTime);
+              sound._node.gain.setValueAtTime(vol, audio.ctx.currentTime);
             } else if (sound._node && !sound._muted) {
-              sound._node.volume = vol * Howler.volume();
+              sound._node.volume = vol * audio.volume();
             }
 
             self._emit('volume', sound._id);
@@ -1290,7 +1289,7 @@
      * @param  {Number} to   The volume to fade to (0.0 to 1.0).
      * @param  {Number} len  Time in milliseconds to fade.
      * @param  {Number} id   The sound id (omit to fade all sounds).
-     * @return {Howl}
+     * @return {Sound}
      */
     fade: function(from, to, len, id) {
       var self = this;
@@ -1330,7 +1329,7 @@
 
           // If we are using Web Audio, let the native methods do the actual fade.
           if (self._webAudio && !sound._muted) {
-            var currentTime = Howler.ctx.currentTime;
+            var currentTime = audio.ctx.currentTime;
             var end = currentTime + (len / 1000);
             sound._volume = from;
             sound._node.gain.setValueAtTime(from, currentTime);
@@ -1408,7 +1407,7 @@
      * Internal method that stops the currently playing fade when
      * a new fade starts, volume is changed or the sound is stopped.
      * @param  {Number} id The sound id.
-     * @return {Howl}
+     * @return {Sound}
      */
     _stopFade: function(id) {
       var self = this;
@@ -1416,7 +1415,7 @@
 
       if (sound && sound._interval) {
         if (self._webAudio) {
-          sound._node.gain.cancelScheduledValues(Howler.ctx.currentTime);
+          sound._node.gain.cancelScheduledValues(audio.ctx.currentTime);
         }
 
         clearInterval(sound._interval);
@@ -1433,9 +1432,9 @@
      * Get/set the loop parameter on a sound. This method can optionally take 0, 1 or 2 arguments.
      *   loop() -> Returns the group's loop value.
      *   loop(id) -> Returns the sound id's loop value.
-     *   loop(loop) -> Sets the loop value for all sounds in this Howl group.
+     *   loop(loop) -> Sets the loop value for all sounds in this Sound group.
      *   loop(loop, id) -> Sets the loop value of passed sound id.
-     * @return {Howl/Boolean} Returns self or current loop value.
+     * @return {Sound/Boolean} Returns self or current loop value.
      */
     loop: function() {
       var self = this;
@@ -1490,9 +1489,9 @@
      * Get/set the playback rate of a sound. This method can optionally take 0, 1 or 2 arguments.
      *   rate() -> Returns the first sound node's current playback rate.
      *   rate(id) -> Returns the sound id's current playback rate.
-     *   rate(rate) -> Sets the playback rate of all sounds in this Howl group.
+     *   rate(rate) -> Sets the playback rate of all sounds in this Sound group.
      *   rate(rate, id) -> Sets the playback rate of passed sound id.
-     * @return {Howl/Number} Returns self or the current playback rate.
+     * @return {Sound/Number} Returns self or the current playback rate.
      */
     rate: function() {
       var self = this;
@@ -1548,13 +1547,13 @@
             // start position so we can properly adjust the seek position for time elapsed.
             if (self.playing(id[i])) {
               sound._rateSeek = self.seek(id[i]);
-              sound._playStart = self._webAudio ? Howler.ctx.currentTime : sound._playStart;
+              sound._playStart = self._webAudio ? audio.ctx.currentTime : sound._playStart;
             }
             sound._rate = rate;
 
             // Change the playback rate.
             if (self._webAudio && sound._node && sound._node.bufferSource) {
-              sound._node.bufferSource.playbackRate.setValueAtTime(rate, Howler.ctx.currentTime);
+              sound._node.bufferSource.playbackRate.setValueAtTime(rate, audio.ctx.currentTime);
             } else if (sound._node) {
               sound._node.playbackRate = rate;
             }
@@ -1587,7 +1586,7 @@
      *   seek(id) -> Returns the sound id's current seek position.
      *   seek(seek) -> Sets the seek position of the first sound node.
      *   seek(seek, id) -> Sets the seek position of passed sound id.
-     * @return {Howl/Number} Returns self or the current seek position.
+     * @return {Sound/Number} Returns self or the current seek position.
      */
     seek: function() {
       var self = this;
@@ -1678,7 +1677,7 @@
           }
         } else {
           if (self._webAudio) {
-            var realTime = self.playing(id) ? Howler.ctx.currentTime - sound._playStart : 0;
+            var realTime = self.playing(id) ? audio.ctx.currentTime - sound._playStart : 0;
             var rateSeek = sound._rateSeek ? sound._rateSeek - sound._seek : 0;
             return sound._seek + (rateSeek + realTime * Math.abs(sound._rate));
           } else {
@@ -1733,7 +1732,7 @@
     },
 
     /**
-     * Returns the current loaded state of this Howl.
+     * Returns the current loaded state of this Sound.
      * @return {String} 'unloaded', 'loading', 'loaded'
      */
     state: function() {
@@ -1741,7 +1740,7 @@
     },
 
     /**
-     * Unload and destroy the current Howl object.
+     * Unload and destroy the current Sound object.
      * This will immediately stop all sound instances attached to this group.
      */
     unload: function() {
@@ -1762,11 +1761,11 @@
 
           // Remove any event listeners.
           sounds[i]._node.removeEventListener('error', sounds[i]._errorFn, false);
-          sounds[i]._node.removeEventListener(Howler._canPlayEvent, sounds[i]._loadFn, false);
+          sounds[i]._node.removeEventListener(audio._canPlayEvent, sounds[i]._loadFn, false);
           sounds[i]._node.removeEventListener('ended', sounds[i]._endFn, false);
 
           // Release the Audio object back to the pool.
-          Howler._releaseHtml5Audio(sounds[i]._node);
+          audio._releaseHtml5Audio(sounds[i]._node);
         }
 
         // Empty out all of the nodes.
@@ -1776,16 +1775,16 @@
         self._clearTimer(sounds[i]._id);
       }
 
-      // Remove the references in the global Howler object.
-      var index = Howler._howls.indexOf(self);
+      // Remove the references in the global audio object.
+      var index = audio._soundGroups.indexOf(self);
       if (index >= 0) {
-        Howler._howls.splice(index, 1);
+        audio._soundGroups.splice(index, 1);
       }
 
-      // Delete this sound from the cache (if no other Howl is using it).
+      // Delete this sound from the cache (if no other Sound is using it).
       var remCache = true;
-      for (i=0; i<Howler._howls.length; i++) {
-        if (Howler._howls[i]._src === self._src || self._src.indexOf(Howler._howls[i]._src) >= 0) {
+      for (i=0; i<audio._soundGroups.length; i++) {
+        if (audio._soundGroups[i]._src === self._src || self._src.indexOf(audio._soundGroups[i]._src) >= 0) {
           remCache = false;
           break;
         }
@@ -1796,7 +1795,7 @@
       }
 
       // Clear global errors.
-      Howler.noAudio = false;
+      audio.noAudio = false;
 
       // Clear out `self`.
       self._state = 'unloaded';
@@ -1812,7 +1811,7 @@
      * @param  {Function} fn    Listener to call.
      * @param  {Number}   id    (optional) Only listen to events for this sound.
      * @param  {Number}   once  (INTERNAL) Marks event to fire only once.
-     * @return {Howl}
+     * @return {Sound}
      */
     on: function(event, fn, id, once) {
       var self = this;
@@ -1830,7 +1829,7 @@
      * @param  {String}   event Event name.
      * @param  {Function} fn    Listener to remove. Leave empty to remove all.
      * @param  {Number}   id    (optional) Only remove events for this sound.
-     * @return {Howl}
+     * @return {Sound}
      */
     off: function(event, fn, id) {
       var self = this;
@@ -1873,7 +1872,7 @@
      * @param  {String}   event Event name.
      * @param  {Function} fn    Listener to call.
      * @param  {Number}   id    (optional) Only listen to events for this sound.
-     * @return {Howl}
+     * @return {Sound}
      */
     once: function(event, fn, id) {
       var self = this;
@@ -1887,9 +1886,9 @@
     /**
      * Emit all events of a specific type and pass the sound id.
      * @param  {String} event Event name.
-     * @param  {Number} id    Sound ID.
+     * @param  {Number} id    SoundInstance ID.
      * @param  {Number} msg   Message to go with event.
-     * @return {Howl}
+     * @return {Sound}
      */
     _emit: function(event, id, msg) {
       var self = this;
@@ -1920,7 +1919,7 @@
      * Queue of actions initiated before the sound has loaded.
      * These will be called in sequence, with the next only firing
      * after the previous has finished executing (even if async like play).
-     * @return {Howl}
+     * @return {Sound}
      */
     _loadQueue: function(event) {
       var self = this;
@@ -1945,8 +1944,8 @@
 
     /**
      * Fired when playback ends at the end of the duration.
-     * @param  {Sound} sound The sound object to work with.
-     * @return {Howl}
+     * @param  {SoundInstance} sound The sound object to work with.
+     * @return {Sound}
      */
     _ended: function(sound) {
       var self = this;
@@ -1976,7 +1975,7 @@
         self._emit('play', sound._id);
         sound._seek = sound._start || 0;
         sound._rateSeek = 0;
-        sound._playStart = Howler.ctx.currentTime;
+        sound._playStart = audio.ctx.currentTime;
 
         var timeout = ((sound._stop - sound._start) * 1000) / Math.abs(sound._rate);
         self._endTimers[sound._id] = setTimeout(self._ended.bind(self, sound), timeout);
@@ -1994,7 +1993,7 @@
         self._cleanBuffer(sound._node);
 
         // Attempt to auto-suspend AudioContext if no sounds are still playing.
-        Howler._autoSuspend();
+        audio._autoSuspend();
       }
 
       // When using a sprite, end the track.
@@ -2008,7 +2007,7 @@
     /**
      * Clear the end timer for a sound playback.
      * @param  {Number} id The sound ID.
-     * @return {Howl}
+     * @return {Sound}
      */
     _clearTimer: function(id) {
       var self = this;
@@ -2032,8 +2031,8 @@
 
     /**
      * Return the sound identified by this ID, or return null.
-     * @param  {Number} id Sound ID
-     * @return {Object}    Sound object or null.
+     * @param  {Number} id SoundInstance ID
+     * @return {Object}    SoundInstance object or null.
      */
     _soundById: function(id) {
       var self = this;
@@ -2050,7 +2049,7 @@
 
     /**
      * Return an inactive sound from the pool or create a new one.
-     * @return {Sound} Sound playback object.
+     * @return {SoundInstance} SoundInstance playback object.
      */
     _inactiveSound: function() {
       var self = this;
@@ -2065,7 +2064,7 @@
       }
 
       // If no inactive node was found, create a new one.
-      return new Sound(self);
+      return new SoundInstance(self);
     },
 
     /**
@@ -2130,14 +2129,14 @@
 
     /**
      * Load the sound back into the buffer source.
-     * @param  {Sound} sound The sound object to work with.
-     * @return {Howl}
+     * @param  {SoundInstance} sound The sound object to work with.
+     * @return {Sound}
      */
     _refreshBuffer: function(sound) {
       var self = this;
 
       // Setup the buffer source for playback.
-      sound._node.bufferSource = Howler.ctx.createBufferSource();
+      sound._node.bufferSource = audio.ctx.createBufferSource();
       sound._node.bufferSource.buffer = cache[self._src];
 
       // Connect to the correct node.
@@ -2153,29 +2152,29 @@
         sound._node.bufferSource.loopStart = sound._start || 0;
         sound._node.bufferSource.loopEnd = sound._stop || 0;
       }
-      sound._node.bufferSource.playbackRate.setValueAtTime(sound._rate, Howler.ctx.currentTime);
+      sound._node.bufferSource.playbackRate.setValueAtTime(sound._rate, audio.ctx.currentTime);
 
       return self;
     },
 
     /**
      * Prevent memory leaks by cleaning up the buffer source after playback.
-     * @param  {Object} node Sound's audio node containing the buffer source.
-     * @return {Howl}
+     * @param  {Object} node SoundInstance's audio node containing the buffer source.
+     * @return {Sound}
      */
     _cleanBuffer: function(node) {
       var self = this;
-      var isIOS = Howler._navigator && Howler._navigator.vendor.indexOf('Apple') >= 0;
+      var isIOS = audio._navigator && audio._navigator.vendor.indexOf('Apple') >= 0;
 
       if (!node.bufferSource) {
         return self;
       }
 
-      if (Howler._scratchBuffer && node.bufferSource) {
+      if (audio._scratchBuffer && node.bufferSource) {
         node.bufferSource.onended = null;
         node.bufferSource.disconnect(0);
         if (isIOS) {
-          try { node.bufferSource.buffer = Howler._scratchBuffer; } catch(e) {}
+          try { node.bufferSource.buffer = audio._scratchBuffer; } catch(e) {}
         }
       }
       node.bufferSource = null;
@@ -2188,28 +2187,28 @@
      * @param  {Object} node Audio node to clear.
      */
     _clearSound: function(node) {
-      var checkIE = /MSIE |Trident\//.test(Howler._navigator && Howler._navigator.userAgent);
+      var checkIE = /MSIE |Trident\//.test(audio._navigator && audio._navigator.userAgent);
       if (!checkIE) {
         node.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
       }
     }
   };
 
-  /** Single Sound Methods **/
+  /** Single SoundInstance Methods **/
   /***************************************************************************/
 
   /**
-   * Setup the sound object, which each node attached to a Howl group is contained in.
-   * @param {Object} howl The Howl parent group.
+   * Setup the sound object, which each node attached to a Sound group is contained in.
+   * @param {Object} howl The Sound parent group.
    */
-  var Sound = function(howl) {
+  var SoundInstance = function(howl) {
     this._parent = howl;
     this.init();
   };
-  Sound.prototype = {
+  SoundInstance.prototype = {
     /**
-     * Initialize a new Sound object.
-     * @return {Sound}
+     * Initialize a new SoundInstance object.
+     * @return {SoundInstance}
      */
     init: function() {
       var self = this;
@@ -2226,7 +2225,7 @@
       self._sprite = '__default';
 
       // Generate a unique ID for this sound.
-      self._id = ++Howler._counter;
+      self._id = ++audio._counter;
 
       // Add itself to the parent's pool.
       parent._sounds.push(self);
@@ -2239,22 +2238,22 @@
 
     /**
      * Create and setup a new sound object, whether HTML5 Audio or Web Audio.
-     * @return {Sound}
+     * @return {SoundInstance}
      */
     create: function() {
       var self = this;
       var parent = self._parent;
-      var volume = (Howler._muted || self._muted || self._parent._muted) ? 0 : self._volume;
+      var volume = (audio._muted || self._muted || self._parent._muted) ? 0 : self._volume;
 
       if (parent._webAudio) {
         // Create the gain node for controlling volume (the source will connect to this).
-        self._node = (typeof Howler.ctx.createGain === 'undefined') ? Howler.ctx.createGainNode() : Howler.ctx.createGain();
-        self._node.gain.setValueAtTime(volume, Howler.ctx.currentTime);
+        self._node = (typeof audio.ctx.createGain === 'undefined') ? audio.ctx.createGainNode() : audio.ctx.createGain();
+        self._node.gain.setValueAtTime(volume, audio.ctx.currentTime);
         self._node.paused = true;
-        self._node.connect(Howler.masterGain);
-      } else if (!Howler.noAudio) {
+        self._node.connect(audio.masterGain);
+      } else if (!audio.noAudio) {
         // Get an unlocked Audio object from the pool.
-        self._node = Howler._obtainHtml5Audio();
+        self._node = audio._obtainHtml5Audio();
 
         // Listen for errors (http://dev.w3.org/html5/spec-author-view/spec.html#mediaerror).
         self._errorFn = self._errorListener.bind(self);
@@ -2262,7 +2261,7 @@
 
         // Listen for 'canplaythrough' event to let us know the sound is ready.
         self._loadFn = self._loadListener.bind(self);
-        self._node.addEventListener(Howler._canPlayEvent, self._loadFn, false);
+        self._node.addEventListener(audio._canPlayEvent, self._loadFn, false);
 
         // Listen for the 'ended' event on the sound to account for edge-case where
         // a finite sound has a duration of Infinity.
@@ -2272,7 +2271,7 @@
         // Setup the new audio node.
         self._node.src = parent._src;
         self._node.preload = parent._preload === true ? 'auto' : parent._preload;
-        self._node.volume = volume * Howler.volume();
+        self._node.volume = volume * audio.volume();
 
         // Begin loading the source.
         self._node.load();
@@ -2283,7 +2282,7 @@
 
     /**
      * Reset the parameters of this sound to the original state (for recycle).
-     * @return {Sound}
+     * @return {SoundInstance}
      */
     reset: function() {
       var self = this;
@@ -2301,7 +2300,7 @@
       self._sprite = '__default';
 
       // Generate a new ID so that it isn't confused with the previous sound.
-      self._id = ++Howler._counter;
+      self._id = ++audio._counter;
 
       return self;
     },
@@ -2341,7 +2340,7 @@
       }
 
       // Clear the event listener.
-      self._node.removeEventListener(Howler._canPlayEvent, self._loadFn, false);
+      self._node.removeEventListener(audio._canPlayEvent, self._loadFn, false);
     },
 
     /**
@@ -2378,7 +2377,7 @@
 
   /**
    * Buffer a sound from URL, Data URI or cache and decode to audio source (Web Audio API).
-   * @param  {Howl} self
+   * @param  {Sound} self
    */
   var loadBuffer = function(self) {
     var url = self._src;
@@ -2388,7 +2387,7 @@
       // Set the duration from the cache.
       self._duration = cache[url].duration;
 
-      // Load the sound into this Howl.
+      // Load the sound into this Sound.
       loadSound(self);
 
       return;
@@ -2456,7 +2455,7 @@
   /**
    * Decode audio data from an array buffer.
    * @param  {ArrayBuffer} arraybuffer The audio data.
-   * @param  {Howl}        self
+   * @param  {Sound}        self
    */
   var decodeAudioData = function(arraybuffer, self) {
     // Fire a load error if something broke.
@@ -2475,16 +2474,16 @@
     };
 
     // Decode the buffer into an audio source.
-    if (typeof Promise !== 'undefined' && Howler.ctx.decodeAudioData.length === 1) {
-      Howler.ctx.decodeAudioData(arraybuffer).then(success).catch(error);
+    if (typeof Promise !== 'undefined' && audio.ctx.decodeAudioData.length === 1) {
+      audio.ctx.decodeAudioData(arraybuffer).then(success).catch(error);
     } else {
-      Howler.ctx.decodeAudioData(arraybuffer, success, error);
+      audio.ctx.decodeAudioData(arraybuffer, success, error);
     }
   }
 
   /**
-   * Sound is now loaded, so finish setting everything up and fire the loaded event.
-   * @param  {Howl} self
+   * SoundInstance is now loaded, so finish setting everything up and fire the loaded event.
+   * @param  {Sound} self
    * @param  {Object} buffer The decoded buffer sound source.
    */
   var loadSound = function(self, buffer) {
@@ -2511,78 +2510,75 @@
    */
   var setupAudioContext = function() {
     // If we have already detected that Web Audio isn't supported, don't run this step again.
-    if (!Howler.usingWebAudio) {
+    if (!audio.usingWebAudio) {
       return;
     }
 
     // Check if we are using Web Audio and setup the AudioContext if we are.
     try {
       if (typeof AudioContext !== 'undefined') {
-        Howler.ctx = new AudioContext();
+        audio.ctx = new AudioContext();
       } else if (typeof webkitAudioContext !== 'undefined') {
-        Howler.ctx = new webkitAudioContext();
+        audio.ctx = new webkitAudioContext();
       } else {
-        Howler.usingWebAudio = false;
+        audio.usingWebAudio = false;
       }
     } catch(e) {
-      Howler.usingWebAudio = false;
+      audio.usingWebAudio = false;
     }
 
     // If the audio context creation still failed, set using web audio to false.
-    if (!Howler.ctx) {
-      Howler.usingWebAudio = false;
+    if (!audio.ctx) {
+      audio.usingWebAudio = false;
     }
 
     // Check if a webview is being used on iOS8 or earlier (rather than the browser).
     // If it is, disable Web Audio as it causes crashing.
-    var iOS = (/iP(hone|od|ad)/.test(Howler._navigator && Howler._navigator.platform));
-    var appVersion = Howler._navigator && Howler._navigator.appVersion.match(/OS (\d+)_(\d+)_?(\d+)?/);
+    var iOS = (/iP(hone|od|ad)/.test(audio._navigator && audio._navigator.platform));
+    var appVersion = audio._navigator && audio._navigator.appVersion.match(/OS (\d+)_(\d+)_?(\d+)?/);
     var version = appVersion ? parseInt(appVersion[1], 10) : null;
     if (iOS && version && version < 9) {
-      var safari = /safari/.test(Howler._navigator && Howler._navigator.userAgent.toLowerCase());
-      if (Howler._navigator && !safari) {
-        Howler.usingWebAudio = false;
+      var safari = /safari/.test(audio._navigator && audio._navigator.userAgent.toLowerCase());
+      if (audio._navigator && !safari) {
+        audio.usingWebAudio = false;
       }
     }
 
     // Create and expose the master GainNode when using Web Audio (useful for plugins or advanced usage).
-    if (Howler.usingWebAudio) {
-      Howler.masterGain = (typeof Howler.ctx.createGain === 'undefined') ? Howler.ctx.createGainNode() : Howler.ctx.createGain();
-      Howler.masterGain.gain.setValueAtTime(Howler._muted ? 0 : Howler._volume, Howler.ctx.currentTime);
-      Howler.masterGain.connect(Howler.ctx.destination);
+    if (audio.usingWebAudio) {
+      audio.masterGain = (typeof audio.ctx.createGain === 'undefined') ? audio.ctx.createGainNode() : audio.ctx.createGain();
+      audio.masterGain.gain.setValueAtTime(audio._muted ? 0 : audio._volume, audio.ctx.currentTime);
+      audio.masterGain.connect(audio.ctx.destination);
     }
 
-    // Re-run the setup on Howler.
-    Howler._setup();
+    // Re-run the setup on audio.
+    audio._setup();
   };
 
   // Add support for AMD (Asynchronous Module Definition) libraries such as require.js.
   if (typeof define === 'function' && define.amd) {
     define([], function() {
       return {
-        Howler: Howler,
-        Howl: Howl
+        Audio: audio,
+        Sound: Sound
       };
     });
   }
 
   // Add support for CommonJS libraries such as browserify.
   if (typeof exports !== 'undefined') {
-    exports.Howler = Howler;
-    exports.Howl = Howl;
+    exports.Audio = audio;
+    exports.Sound = Sound;
   }
 
-  // Add to global in Node.js (for testing, etc).
-  if (typeof global !== 'undefined') {
-    global.HowlerGlobal = HowlerGlobal;
-    global.Howler = Howler;
-    global.Howl = Howl;
-    global.Sound = Sound;
-  } else if (typeof window !== 'undefined') {  // Define globally in case AMD is not available or unused.
-    window.HowlerGlobal = HowlerGlobal;
-    window.Howler = Howler;
-    window.Howl = Howl;
-    window.Sound = Sound;
+  var root = typeof global !== 'undefined' ? global : typeof window !== 'undefined' ? window : null;
+  if (root) {
+    root.NkzwAudio = {
+      Audio: audio,
+      Sound: Sound,
+      AudioController: AudioController,
+      SoundInstance: SoundInstance
+    };
   }
 })();
 
@@ -2590,8 +2586,7 @@
 /*!
  *  Spatial Plugin - Adds support for stereo and 3D audio where Web Audio is supported.
  *  
- *  howler.js v2.2.4
- *  howlerjs.com
+ *  @nkzw/audio v2.2.4
  *
  *  (c) 2013-2020, James Simpson of GoldFire Studios
  *  goldfirestudios.com
@@ -2599,24 +2594,29 @@
  *  MIT License
  */
 
-(function() {
+(function(api) {
 
   'use strict';
 
+  var audio = api.Audio;
+  var Sound = api.Sound;
+  var AudioController = api.AudioController;
+  var SoundInstance = api.SoundInstance;
+
   // Setup default properties.
-  HowlerGlobal.prototype._pos = [0, 0, 0];
-  HowlerGlobal.prototype._orientation = [0, 0, -1, 0, 1, 0];
+  AudioController.prototype._pos = [0, 0, 0];
+  AudioController.prototype._orientation = [0, 0, -1, 0, 1, 0];
 
   /** Global Methods **/
   /***************************************************************************/
 
   /**
-   * Helper method to update the stereo panning position of all current Howls.
-   * Future Howls will not use this value unless explicitly set.
+   * Helper method to update the stereo panning position of all current Sounds.
+   * Future Sounds will not use this value unless explicitly set.
    * @param  {Number} pan A value of -1.0 is all the way left and 1.0 is all the way right.
-   * @return {Howler/Number}     Self or current stereo panning value.
+   * @return {audio/Number}     Self or current stereo panning value.
    */
-  HowlerGlobal.prototype.stereo = function(pan) {
+  AudioController.prototype.stereo = function(pan) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -2624,9 +2624,9 @@
       return self;
     }
 
-    // Loop through all Howls and update their stereo panning.
-    for (var i=self._howls.length-1; i>=0; i--) {
-      self._howls[i].stereo(pan);
+    // Loop through all Sounds and update their stereo panning.
+    for (var i=self._soundGroups.length-1; i>=0; i--) {
+      self._soundGroups[i].stereo(pan);
     }
 
     return self;
@@ -2638,9 +2638,9 @@
    * @param  {Number} x The x-position of the listener.
    * @param  {Number} y The y-position of the listener.
    * @param  {Number} z The z-position of the listener.
-   * @return {Howler/Array}   Self or current listener position.
+   * @return {audio/Array}   Self or current listener position.
    */
-  HowlerGlobal.prototype.pos = function(x, y, z) {
+  AudioController.prototype.pos = function(x, y, z) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -2656,9 +2656,9 @@
       self._pos = [x, y, z];
 
       if (typeof self.ctx.listener.positionX !== 'undefined') {
-        self.ctx.listener.positionX.setTargetAtTime(self._pos[0], Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.positionY.setTargetAtTime(self._pos[1], Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.positionZ.setTargetAtTime(self._pos[2], Howler.ctx.currentTime, 0.1);
+        self.ctx.listener.positionX.setTargetAtTime(self._pos[0], audio.ctx.currentTime, 0.1);
+        self.ctx.listener.positionY.setTargetAtTime(self._pos[1], audio.ctx.currentTime, 0.1);
+        self.ctx.listener.positionZ.setTargetAtTime(self._pos[2], audio.ctx.currentTime, 0.1);
       } else {
         self.ctx.listener.setPosition(self._pos[0], self._pos[1], self._pos[2]);
       }
@@ -2681,9 +2681,9 @@
    * @param  {Number} xUp The x-orientation of the top of the listener.
    * @param  {Number} yUp The y-orientation of the top of the listener.
    * @param  {Number} zUp The z-orientation of the top of the listener.
-   * @return {Howler/Array}     Returns self or the current orientation vectors.
+   * @return {audio/Array}     Returns self or the current orientation vectors.
    */
-  HowlerGlobal.prototype.orientation = function(x, y, z, xUp, yUp, zUp) {
+  AudioController.prototype.orientation = function(x, y, z, xUp, yUp, zUp) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -2703,12 +2703,12 @@
       self._orientation = [x, y, z, xUp, yUp, zUp];
 
       if (typeof self.ctx.listener.forwardX !== 'undefined') {
-        self.ctx.listener.forwardX.setTargetAtTime(x, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.forwardY.setTargetAtTime(y, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.forwardZ.setTargetAtTime(z, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.upX.setTargetAtTime(xUp, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.upY.setTargetAtTime(yUp, Howler.ctx.currentTime, 0.1);
-        self.ctx.listener.upZ.setTargetAtTime(zUp, Howler.ctx.currentTime, 0.1);
+        self.ctx.listener.forwardX.setTargetAtTime(x, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.forwardY.setTargetAtTime(y, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.forwardZ.setTargetAtTime(z, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.upX.setTargetAtTime(xUp, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.upY.setTargetAtTime(yUp, audio.ctx.currentTime, 0.1);
+        self.ctx.listener.upZ.setTargetAtTime(zUp, audio.ctx.currentTime, 0.1);
       } else {
         self.ctx.listener.setOrientation(x, y, z, xUp, yUp, zUp);
       }
@@ -2725,9 +2725,9 @@
   /**
    * Add new properties to the core init.
    * @param  {Function} _super Core init method.
-   * @return {Howl}
+   * @return {Sound}
    */
-  Howl.prototype.init = (function(_super) {
+  Sound.prototype.init = (function(_super) {
     return function(o) {
       var self = this;
 
@@ -2751,18 +2751,18 @@
       self._onpos = o.onpos ? [{fn: o.onpos}] : [];
       self._onorientation = o.onorientation ? [{fn: o.onorientation}] : [];
 
-      // Complete initilization with howler.js core's init function.
+      // Complete initilization with core's init function.
       return _super.call(this, o);
     };
-  })(Howl.prototype.init);
+  })(Sound.prototype.init);
 
   /**
    * Get/set the stereo panning of the audio source for this sound or all in the group.
    * @param  {Number} pan  A value of -1.0 is all the way left and 1.0 is all the way right.
    * @param  {Number} id (optional) The sound ID. If none is passed, all in group will be updated.
-   * @return {Howl/Number}    Returns self or the current stereo panning value.
+   * @return {Sound/Number}    Returns self or the current stereo panning value.
    */
-  Howl.prototype.stereo = function(pan, id) {
+  Sound.prototype.stereo = function(pan, id) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -2783,7 +2783,7 @@
     }
 
     // Check for PannerStereoNode support and fallback to PannerNode if it doesn't exist.
-    var pannerType = (typeof Howler.ctx.createStereoPanner === 'undefined') ? 'spatial' : 'stereo';
+    var pannerType = (typeof audio.ctx.createStereoPanner === 'undefined') ? 'spatial' : 'stereo';
 
     // Setup the group's stereo panning if no ID is passed.
     if (typeof id === 'undefined') {
@@ -2818,14 +2818,14 @@
 
             if (pannerType === 'spatial') {
               if (typeof sound._panner.positionX !== 'undefined') {
-                sound._panner.positionX.setValueAtTime(pan, Howler.ctx.currentTime);
-                sound._panner.positionY.setValueAtTime(0, Howler.ctx.currentTime);
-                sound._panner.positionZ.setValueAtTime(0, Howler.ctx.currentTime);
+                sound._panner.positionX.setValueAtTime(pan, audio.ctx.currentTime);
+                sound._panner.positionY.setValueAtTime(0, audio.ctx.currentTime);
+                sound._panner.positionZ.setValueAtTime(0, audio.ctx.currentTime);
               } else {
                 sound._panner.setPosition(pan, 0, 0);
               }
             } else {
-              sound._panner.pan.setValueAtTime(pan, Howler.ctx.currentTime);
+              sound._panner.pan.setValueAtTime(pan, audio.ctx.currentTime);
             }
           }
 
@@ -2845,9 +2845,9 @@
    * @param  {Number} y  The y-position of the audio source.
    * @param  {Number} z  The z-position of the audio source.
    * @param  {Number} id (optional) The sound ID. If none is passed, all in group will be updated.
-   * @return {Howl/Array}    Returns self or the current 3D spatial position: [x, y, z].
+   * @return {Sound/Array}    Returns self or the current 3D spatial position: [x, y, z].
    */
-  Howl.prototype.pos = function(x, y, z, id) {
+  Sound.prototype.pos = function(x, y, z, id) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -2898,9 +2898,9 @@
             }
 
             if (typeof sound._panner.positionX !== 'undefined') {
-              sound._panner.positionX.setValueAtTime(x, Howler.ctx.currentTime);
-              sound._panner.positionY.setValueAtTime(y, Howler.ctx.currentTime);
-              sound._panner.positionZ.setValueAtTime(z, Howler.ctx.currentTime);
+              sound._panner.positionX.setValueAtTime(x, audio.ctx.currentTime);
+              sound._panner.positionY.setValueAtTime(y, audio.ctx.currentTime);
+              sound._panner.positionZ.setValueAtTime(z, audio.ctx.currentTime);
             } else {
               sound._panner.setPosition(x, y, z);
             }
@@ -2924,9 +2924,9 @@
    * @param  {Number} y  The y-orientation of the source.
    * @param  {Number} z  The z-orientation of the source.
    * @param  {Number} id (optional) The sound ID. If none is passed, all in group will be updated.
-   * @return {Howl/Array}    Returns self or the current 3D spatial orientation: [x, y, z].
+   * @return {Sound/Array}    Returns self or the current 3D spatial orientation: [x, y, z].
    */
-  Howl.prototype.orientation = function(x, y, z, id) {
+  Sound.prototype.orientation = function(x, y, z, id) {
     var self = this;
 
     // Stop right here if not using Web Audio.
@@ -2982,9 +2982,9 @@
             }
 
             if (typeof sound._panner.orientationX !== 'undefined') {
-              sound._panner.orientationX.setValueAtTime(x, Howler.ctx.currentTime);
-              sound._panner.orientationY.setValueAtTime(y, Howler.ctx.currentTime);
-              sound._panner.orientationZ.setValueAtTime(z, Howler.ctx.currentTime);
+              sound._panner.orientationX.setValueAtTime(x, audio.ctx.currentTime);
+              sound._panner.orientationY.setValueAtTime(y, audio.ctx.currentTime);
+              sound._panner.orientationZ.setValueAtTime(z, audio.ctx.currentTime);
             } else {
               sound._panner.setOrientation(x, y, z);
             }
@@ -3005,7 +3005,7 @@
    * This method can optionall take 0, 1 or 2 arguments.
    *   pannerAttr() -> Returns the group's values.
    *   pannerAttr(id) -> Returns the sound id's values.
-   *   pannerAttr(o) -> Set's the values of all sounds in this Howl group.
+   *   pannerAttr(o) -> Set's the values of all sounds in this Sound group.
    *   pannerAttr(o, id) -> Set's the values of passed sound id.
    *
    *   Attributes:
@@ -3028,9 +3028,9 @@
    *     panningModel - ('HRTF' by default) Determines which spatialization algorithm is used to position audio.
    *                     Can be `HRTF` or `equalpower`.
    *
-   * @return {Howl/Object} Returns self or current panner attributes.
+   * @return {Sound/Object} Returns self or current panner attributes.
    */
-  Howl.prototype.pannerAttr = function() {
+  Sound.prototype.pannerAttr = function() {
     var self = this;
     var args = arguments;
     var o, id, sound;
@@ -3131,15 +3131,15 @@
     return self;
   };
 
-  /** Single Sound Methods **/
+  /** Single SoundInstance Methods **/
   /***************************************************************************/
 
   /**
-   * Add new properties to the core Sound init.
-   * @param  {Function} _super Core Sound init method.
-   * @return {Sound}
+   * Add new properties to the core SoundInstance init.
+   * @param  {Function} _super Core SoundInstance init method.
+   * @return {SoundInstance}
    */
-  Sound.prototype.init = (function(_super) {
+  SoundInstance.prototype.init = (function(_super) {
     return function() {
       var self = this;
       var parent = self._parent;
@@ -3150,7 +3150,7 @@
       self._pos = parent._pos;
       self._pannerAttr = parent._pannerAttr;
 
-      // Complete initilization with howler.js core Sound's init function.
+      // Complete initilization with core SoundInstance's init function.
       _super.call(this);
 
       // If a stereo or position was specified, set it up.
@@ -3160,14 +3160,14 @@
         parent.pos(self._pos[0], self._pos[1], self._pos[2], self._id);
       }
     };
-  })(Sound.prototype.init);
+  })(SoundInstance.prototype.init);
 
   /**
-   * Override the Sound.reset method to clean up properties from the spatial plugin.
-   * @param  {Function} _super Sound reset method.
-   * @return {Sound}
+   * Override the SoundInstance.reset method to clean up properties from the spatial plugin.
+   * @param  {Function} _super SoundInstance reset method.
+   * @return {SoundInstance}
    */
-  Sound.prototype.reset = (function(_super) {
+  SoundInstance.prototype.reset = (function(_super) {
     return function() {
       var self = this;
       var parent = self._parent;
@@ -3193,14 +3193,14 @@
       // Complete resetting of the sound.
       return _super.call(this);
     };
-  })(Sound.prototype.reset);
+  })(SoundInstance.prototype.reset);
 
   /** Helper Methods **/
   /***************************************************************************/
 
   /**
    * Create a new panner node and save it on the sound.
-   * @param  {Sound} sound Specific sound to setup panning on.
+   * @param  {SoundInstance} sound Specific sound to setup panning on.
    * @param {String} type Type of panner to create: 'stereo' or 'spatial'.
    */
   var setupPanner = function(sound, type) {
@@ -3208,7 +3208,7 @@
 
     // Create the new panner node.
     if (type === 'spatial') {
-      sound._panner = Howler.ctx.createPanner();
+      sound._panner = audio.ctx.createPanner();
       sound._panner.coneInnerAngle = sound._pannerAttr.coneInnerAngle;
       sound._panner.coneOuterAngle = sound._pannerAttr.coneOuterAngle;
       sound._panner.coneOuterGain = sound._pannerAttr.coneOuterGain;
@@ -3219,23 +3219,23 @@
       sound._panner.panningModel = sound._pannerAttr.panningModel;
 
       if (typeof sound._panner.positionX !== 'undefined') {
-        sound._panner.positionX.setValueAtTime(sound._pos[0], Howler.ctx.currentTime);
-        sound._panner.positionY.setValueAtTime(sound._pos[1], Howler.ctx.currentTime);
-        sound._panner.positionZ.setValueAtTime(sound._pos[2], Howler.ctx.currentTime);
+        sound._panner.positionX.setValueAtTime(sound._pos[0], audio.ctx.currentTime);
+        sound._panner.positionY.setValueAtTime(sound._pos[1], audio.ctx.currentTime);
+        sound._panner.positionZ.setValueAtTime(sound._pos[2], audio.ctx.currentTime);
       } else {
         sound._panner.setPosition(sound._pos[0], sound._pos[1], sound._pos[2]);
       }
 
       if (typeof sound._panner.orientationX !== 'undefined') {
-        sound._panner.orientationX.setValueAtTime(sound._orientation[0], Howler.ctx.currentTime);
-        sound._panner.orientationY.setValueAtTime(sound._orientation[1], Howler.ctx.currentTime);
-        sound._panner.orientationZ.setValueAtTime(sound._orientation[2], Howler.ctx.currentTime);
+        sound._panner.orientationX.setValueAtTime(sound._orientation[0], audio.ctx.currentTime);
+        sound._panner.orientationY.setValueAtTime(sound._orientation[1], audio.ctx.currentTime);
+        sound._panner.orientationZ.setValueAtTime(sound._orientation[2], audio.ctx.currentTime);
       } else {
         sound._panner.setOrientation(sound._orientation[0], sound._orientation[1], sound._orientation[2]);
       }
     } else {
-      sound._panner = Howler.ctx.createStereoPanner();
-      sound._panner.pan.setValueAtTime(sound._stereo, Howler.ctx.currentTime);
+      sound._panner = audio.ctx.createStereoPanner();
+      sound._panner.pan.setValueAtTime(sound._stereo, audio.ctx.currentTime);
     }
 
     sound._panner.connect(sound._node);
@@ -3245,4 +3245,4 @@
       sound._parent.pause(sound._id, true).play(sound._id, true);
     }
   };
-})();
+})(typeof global !== 'undefined' ? global.NkzwAudio : window.NkzwAudio);

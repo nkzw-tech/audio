@@ -1,20 +1,16 @@
-# 3D Spatial Audio ([Live Demo](https://howlerjs.com/#spatial))
-
-![3D Spatial Audio](https://s3.amazonaws.com/howler.js/screenshot-3d.jpg "3D Audio Screenshot")
+# 3D Spatial Audio
 
 ## Description
-This example displays how to use howler.js and the Spatial Plugin to add immersive spatial audio into 3D (or other) environments.
+This example displays how to use @nkzw/audio and the Spatial Plugin to add immersive spatial audio into 3D (or other) environments.
 
 * Controls: Arrow Keys, WASD and Touch
 * Simulates 3D game using minimal ray casting code.
 * Full-screen and responsive for desktop/mobile.
 * Separate Audio class that controls the different sound effects and spatial sounds.
-* All game sounds implemented with a single sound sprite and `Howl` instance.
+* All game sounds implemented with a single sound sprite and `Sound` instance.
 
 ## How-To
-1. Clone the git repo or download the source:
-    * **Clone:** `git clone https://github.com/goldfire/howler.js.git`
-    * **Download:** [https://github.com/goldfire/howler.js/archive/master.zip](https://github.com/goldfire/howler.js/archive/master.zip)
+1. Clone the repository with `git clone https://github.com/nkzw-tech/audio.git`.
 2. Open `index.html` in your favorite browser.
 
 ## Credits
