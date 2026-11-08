@@ -328,8 +328,11 @@ export function createAudio({ autoSuspend = true, html5PoolSize = 10 } = {}) {
       // then check if the audio actually played to determine if
       // audio has now been unlocked on iOS, Android, etc.
       let locked = false;
-      const unlock = function () {
-        if (locked) {
+      const unlock = function (event) {
+        if (
+          locked ||
+          (event.type === 'touchstart' && self._navigator?.userActivation?.isActive === false)
+        ) {
           return;
         }
 

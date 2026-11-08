@@ -521,3 +521,57 @@ for (const [name, engine] of engines) {
     },
   );
 }
+
+for (const [name, engine] of Object.entries({ chromium, webkit })) {
+  test(
+    `${name}: waits for an activating touch before starting the unlock probe`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage({ hasTouch: true, isMobile: true });
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio({ html5PoolSize: 0 });
+          const output = audio.getOutput();
+          const { context } = output;
+          const createSource = context.createBufferSource.bind(context);
+          const result = { audio, probes: 0 };
+          window.touch = result;
+          context.createBufferSource = () => {
+            result.probes++;
+            return createSource();
+          };
+          document.addEventListener(
+            'touchstart',
+            () => {
+              result.start = { active: navigator.userActivation?.isActive, probes: result.probes };
+            },
+            true,
+          );
+          document.addEventListener(
+            'touchend',
+            () => {
+              result.end = { probes: result.probes };
+            },
+            true,
+          );
+        });
+        await page.getByRole('button').tap();
+        const { end, start } = await page.evaluate(async () => {
+          const { audio, end, start } = window.touch;
+          await audio.dispose();
+          return { end, start };
+        });
+        assert.ok(start);
+        if (start.active === false) {
+          assert.equal(start.probes, 0);
+        }
+        assert.deepEqual(end, { probes: 1 });
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}
