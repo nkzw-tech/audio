@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { once } from 'node:events';
 import { test } from 'node:test';
 import { chromium, webkit } from 'playwright';
 
@@ -30,43 +30,55 @@ const url = `http://127.0.0.1:${server.address().port}`;
 test.after(() => server.close());
 
 for (const [name, engine] of Object.entries({ chromium, webkit })) {
-  test(`${name}: plays Web Audio and HTML media from one gesture`, { timeout: 15_000 }, async () => {
-    const browser = await engine.launch();
-    try {
-      const page = await browser.newPage();
-      const errors = [];
-      page.on('pageerror', (error) => errors.push(error.message));
-      await page.goto(url);
-      await page.addScriptTag({ path: 'dist/audio.js' });
-      await page.evaluate(() => {
-        const { Audio, Sound } = window.NkzwAudio;
-        if (typeof Sound.prototype.stereo !== 'function') {
-          throw new Error('Spatial playback is unavailable.');
-        }
-        Audio.volume(0);
-        window.playback = {};
-        document.querySelector('button').addEventListener('click', () => {
-          for (const html5 of [false, true]) {
-            const name = html5 ? 'html' : 'web';
-            const sound = new Sound({ src: ['/sound.wav?' + name], html5, preload: false });
-            sound.on('loaderror', (_, error) => { window.playback[name] = String(error); });
-            sound.on('playerror', (_, error) => { window.playback[name] = String(error); });
-            sound.on('play', (id) => {
-              window.playback[name] = sound.playing(id) && sound.duration(id) > 0;
-              sound.stop(id);
-              sound.unload();
-            });
-            sound.load();
-            sound.play();
+  test(
+    `${name}: plays Web Audio and HTML media from one gesture`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        const errors = [];
+        page.on('pageerror', (error) => errors.push(error.message));
+        await page.goto(url);
+        await page.addScriptTag({ path: 'dist/audio.js' });
+        await page.evaluate(() => {
+          const { Audio, Sound } = window.NkzwAudio;
+          if (typeof Sound.prototype.stereo !== 'function') {
+            throw new Error('Spatial playback is unavailable.');
           }
-        }, { once: true });
-      });
-      await page.getByRole('button').click();
-      await page.waitForFunction(() => Object.keys(window.playback).length === 2);
-      assert.deepEqual(await page.evaluate(() => window.playback), { html: true, web: true });
-      assert.deepEqual(errors, []);
-    } finally {
-      await browser.close();
-    }
-  });
+          Audio.volume(0);
+          window.playback = {};
+          document.querySelector('button').addEventListener(
+            'click',
+            () => {
+              for (const html5 of [false, true]) {
+                const name = html5 ? 'html' : 'web';
+                const sound = new Sound({ html5, preload: false, src: ['/sound.wav?' + name] });
+                sound.on('loaderror', (_, error) => {
+                  window.playback[name] = String(error);
+                });
+                sound.on('playerror', (_, error) => {
+                  window.playback[name] = String(error);
+                });
+                sound.on('play', (id) => {
+                  window.playback[name] = sound.playing(id) && sound.duration(id) > 0;
+                  sound.stop(id);
+                  sound.unload();
+                });
+                sound.load();
+                sound.play();
+              }
+            },
+            { once: true },
+          );
+        });
+        await page.getByRole('button').click();
+        await page.waitForFunction(() => Object.keys(window.playback).length === 2);
+        assert.deepEqual(await page.evaluate(() => window.playback), { html: true, web: true });
+        assert.deepEqual(errors, []);
+      } finally {
+        await browser.close();
+      }
+    },
+  );
 }

@@ -2,18 +2,19 @@
   "name": "@nkzw/audio",
   "version": "2.2.4",
   "description": "Cross-platform audio playback for the web.",
-  "homepage": "https://github.com/nkzw-tech/audio",
   "keywords": [
     "audio",
-    "sound",
-    "web audio",
-    "webaudio",
+    "audio sprite",
+    "audiosprite",
     "browser",
     "html5",
     "html5 audio",
-    "audio sprite",
-    "audiosprite"
+    "sound",
+    "web audio",
+    "webaudio"
   ],
+  "homepage": "https://github.com/nkzw-tech/audio",
+  "license": "MIT",
   "author": {
     "name": "Christoph Nakazawa",
     "email": "christoph.pojer@gmail.com"
@@ -22,20 +23,23 @@
     "type": "git",
     "url": "https://github.com/nkzw-tech/audio"
   },
-  "scripts": {
-    "build": "vp pack",
-    "test": "vp pack && node --test tests/*.test.mjs",
-    "prepack": "vp pack"
-  },
-  "devDependencies": {
-    "playwright": "^1.65.0",
-    "vite-plus": "1.5.0"
-  },
-  "main": "dist/audio.cjs",
-  "license": "MIT",
   "files": [
     "dist",
     "LICENSE.md"
   ],
+  "main": "dist/audio.cjs",
+  "scripts": {
+    "build": "vp pack",
+    "prepack": "vp pack",
+    "prepare": "vp config",
+    "test": "vp pack && node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@nkzw/oxlint-config": "^2.0.1",
+    "@types/node": "^24.19.2",
+    "playwright": "^1.65.0",
+    "typescript": "~6.0.3",
+    "vite-plus": "1.5.0"
+  },
   "packageManager": "pnpm@12.18.0"
 }
