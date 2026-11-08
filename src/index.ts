@@ -3,9 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { createAudio as createEngine } from './audio.core.js';
+import { AudioMixer } from './AudioMixer.ts';
 
-export const createAudio: (options?: AudioOptions) => Audio = createEngine;
+export function createAudio(options?: AudioOptions): Audio {
+  return new AudioMixer(options);
+}
 
 export type AudioOptions = {
   autoSuspend?: boolean;

@@ -19,15 +19,6 @@ export default defineConfig({
     ignorePatterns: ['lib/'],
     options: { typeAware: true, typeCheck: true },
     overrides: [
-      {
-        env: { browser: true },
-        files: ['src/**/*.js'],
-        rules: {
-          'no-empty': ['error', { allowEmptyCatch: true }],
-          'perfectionist/sort-objects': 'off',
-          'unicorn/consistent-function-scoping': 'off',
-        },
-      },
       { env: { browser: true }, files: ['examples/**/*.js', 'tests/js/*.js'] },
       { env: { browser: true, node: true }, files: ['tests/*.mjs'] },
     ],
@@ -40,6 +31,7 @@ export default defineConfig({
       minify: true,
       outDir: 'lib',
       platform: 'neutral',
+      target: 'es2022',
     },
     {
       clean: false,
@@ -48,6 +40,7 @@ export default defineConfig({
       minify: true,
       outDir: 'lib',
       platform: 'browser',
+      target: 'es2022',
     },
   ],
   staged: { '*': 'vp check --fix' },

@@ -1,12 +1,11 @@
 {
   "compilerOptions": {
     "allowImportingTsExtensions": true,
-    "allowJs": true,
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "preserve",
     "noEmit": true,
     "strict": true,
-    "target": "ES2023",
+    "target": "ES2022",
     "types": ["node"]
   },
   "include": ["src", "vite.config.ts"]

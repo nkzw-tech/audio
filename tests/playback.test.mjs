@@ -355,12 +355,17 @@ for (const [name, engine] of engines) {
           const audio = createAudio({ html5PoolSize: 0 });
           const output = audio.getOutput();
           const { context } = output;
-          const createSource = context.createBufferSource.bind(context);
-          const state = { audio, context, count: 0, release: null };
+          const resume = context.resume.bind(context);
+          const state = { audio, context, count: 0, release: null, unlocks: 0 };
+          audio.sound({
+            onunlock: () => state.unlocks++,
+            preload: false,
+            src: '/sound.wav',
+          });
           window.lease = state;
-          context.createBufferSource = () => {
+          context.resume = () => {
             state.count++;
-            return createSource();
+            return resume();
           };
           document.querySelector('button').addEventListener(
             'click',
@@ -373,16 +378,18 @@ for (const [name, engine] of engines) {
             { once: true },
           );
         });
+        await page.waitForFunction(() => window.lease.context.state === 'suspended');
         await page.getByRole('button').click();
         await page.waitForFunction(() => window.lease.context.state === 'running');
         await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 220)));
-        assert.deepEqual(
-          await page.evaluate(() => ({
-            count: window.lease.count,
-            state: window.lease.context.state,
-          })),
-          { count: 1, state: 'running' },
-        );
+        const state = await page.evaluate(() => ({
+          count: window.lease.count,
+          state: window.lease.context.state,
+          unlocks: window.lease.unlocks,
+        }));
+        assert.ok(state.count <= 1);
+        assert.equal(state.state, 'running');
+        assert.equal(state.unlocks, 1);
         await page.evaluate(() => {
           window.lease.release();
           window.lease.release();
@@ -415,10 +422,12 @@ for (const [name, engine] of engines) {
           const audio = createAudio({ html5PoolSize: 0 });
           const output = audio.getOutput();
           const report = { aborts: 0, decodes: 0, events: [] };
-          const abort = XMLHttpRequest.prototype.abort;
-          XMLHttpRequest.prototype.abort = function () {
-            report.aborts++;
-            abort.call(this);
+          const fetchAudio = window.fetch;
+          window.fetch = (source, options) => {
+            if (String(source).endsWith('?held')) {
+              options.signal.addEventListener('abort', () => report.aborts++, { once: true });
+            }
+            return fetchAudio(source, options);
           };
           const delayed = Promise.withResolvers();
           output.context.decodeAudioData = () => {
@@ -524,7 +533,7 @@ for (const [name, engine] of engines) {
 
 for (const [name, engine] of Object.entries({ chromium, webkit })) {
   test(
-    `${name}: waits for an activating touch before starting the unlock probe`,
+    `${name}: waits for an activating touch before resuming Web Audio`,
     { timeout: 15_000 },
     async () => {
       const browser = await engine.launch();
@@ -536,24 +545,28 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
           const audio = createAudio({ html5PoolSize: 0 });
           const output = audio.getOutput();
           const { context } = output;
-          const createSource = context.createBufferSource.bind(context);
-          const result = { audio, probes: 0 };
+          await context.suspend();
+          const resume = context.resume.bind(context);
+          const result = { audio, resumes: 0 };
           window.touch = result;
-          context.createBufferSource = () => {
-            result.probes++;
-            return createSource();
+          context.resume = () => {
+            result.resumes++;
+            return resume();
           };
           document.addEventListener(
             'touchstart',
             () => {
-              result.start = { active: navigator.userActivation?.isActive, probes: result.probes };
+              result.start = {
+                active: navigator.userActivation?.isActive,
+                resumes: result.resumes,
+              };
             },
             true,
           );
           document.addEventListener(
             'touchend',
             () => {
-              result.end = { probes: result.probes };
+              result.end = { resumes: result.resumes };
             },
             true,
           );
@@ -566,9 +579,169 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
         });
         assert.ok(start);
         if (start.active === false) {
-          assert.equal(start.probes, 0);
+          assert.equal(start.resumes, 0);
         }
-        assert.deepEqual(end, { probes: 1 });
+        assert.deepEqual(end, { resumes: 1 });
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}
+
+for (const [name, engine] of engines) {
+  test(
+    `${name}: shares in-flight audio until the last sound unloads`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        const result = await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio();
+          const originalFetch = window.fetch;
+          let requests = 0;
+          window.fetch = (source, options) => {
+            if (String(source).endsWith('/sound.wav?shared')) {
+              requests++;
+            }
+            return originalFetch(source, options);
+          };
+          const first = audio.sound({ src: '/sound.wav?shared' });
+          const loaded = Promise.withResolvers();
+          const second = audio.sound({
+            onload: loaded.resolve,
+            onloaderror: (_, error) => loaded.reject(error),
+            src: '/sound.wav?shared',
+          });
+          first.unload();
+          await loaded.promise;
+          const whileShared = requests;
+          second.unload();
+
+          const reloaded = Promise.withResolvers();
+          audio.sound({
+            onload: reloaded.resolve,
+            onloaderror: (_, error) => reloaded.reject(error),
+            src: '/sound.wav?shared',
+          });
+          await reloaded.promise;
+          await audio.dispose();
+          return { afterUnload: requests, whileShared };
+        });
+        assert.deepEqual(result, { afterUnload: 2, whileShared: 1 });
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}
+
+for (const [name, engine] of engines) {
+  test(
+    `${name}: supports per-voice events and live spatial updates`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio();
+          const { context } = audio.getOutput();
+          const createSource = context.createBufferSource.bind(context);
+          const events = { starts: 0 };
+          context.createBufferSource = () => {
+            events.starts++;
+            return createSource();
+          };
+          const sound = audio.sound({
+            sprite: { moving: [1000, 3000] },
+            src: '/sound.wav',
+          });
+          window.voices = { audio, events, sound };
+          document.querySelector('button').addEventListener('click', () => {
+            const voice = sound.play('moving');
+            sound.once(
+              'play',
+              () => {
+                sound.stereo(-0.5, voice);
+                sound.pos(1, 0, -0.5, voice);
+                sound.rate(2, voice);
+                sound.once(
+                  'fade',
+                  () => {
+                    sound.pause(voice);
+                    const position = sound.position(voice);
+                    events.played = position >= 1 && position < 4;
+                    events.paused = !sound.playing(voice);
+                    events.volume = sound.volume(voice);
+                  },
+                  voice,
+                );
+                sound.fade(1, 0.25, 60, voice);
+              },
+              voice,
+            );
+          });
+        });
+        await page.waitForFunction(() => window.voices.sound.state() === 'loaded');
+        await page.getByRole('button').click();
+        await page.waitForFunction(() => 'played' in window.voices.events);
+        const result = await page.evaluate(async () => {
+          const { audio, events } = window.voices;
+          await audio.dispose();
+          return events;
+        });
+        assert.deepEqual(result, { paused: true, played: true, starts: 1, volume: 0.25 });
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}
+
+for (const [name, engine] of Object.entries({ chromium, webkit })) {
+  test(
+    `${name}: prepares native media voices on the first gesture`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio({ html5PoolSize: 2 });
+          const ids = [];
+          const errors = [];
+          const sound = audio.sound({
+            html5: true,
+            onplay: (id) => ids.push(id),
+            onplayerror: (_, error) => errors.push(String(error)),
+            src: '/sound.wav',
+          });
+          window.mediaVoices = { audio, errors, ids, sound };
+        });
+        await page.waitForFunction(() => window.mediaVoices.sound.state() === 'loaded');
+        await page.getByRole('button').click();
+        const expected = await page.evaluate(() => {
+          const { sound } = window.mediaVoices;
+          return [sound.play(), sound.play()];
+        });
+        await page.waitForFunction(
+          () => window.mediaVoices.ids.length === 2 || window.mediaVoices.errors.length > 0,
+        );
+        const { errors, ids } = await page.evaluate(async () => {
+          const { audio, errors, ids } = window.mediaVoices;
+          await audio.dispose();
+          return { errors, ids };
+        });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(ids.toSorted(), expected.toSorted());
       } finally {
         await browser.close();
       }

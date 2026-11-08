@@ -177,9 +177,7 @@ const tests = [
 
     label.innerHTML = 'FADE OUT GROUP';
     sound1.once('fade', () => {
-      if (sound1._onfade.length === 0) {
-        fn();
-      }
+      fn();
     });
   },
 
@@ -188,9 +186,7 @@ const tests = [
 
     label.innerHTML = 'FADE IN GROUP';
     sound1.once('fade', () => {
-      if (sound1._onfade.length === 0) {
-        fn();
-      }
+      fn();
     });
   },
 
@@ -249,12 +245,16 @@ const tests = [
   },
 
   function (fn) {
-    sound2.fade(1, 0, 2000, id);
-
+    const voice = sound2.play('beat');
     label.innerHTML = 'FADE OUT SPRITE';
-    sound2.once('fade', () => {
-      fn();
-    });
+    sound2.once(
+      'play',
+      () => {
+        sound2.once('fade', fn, voice);
+        sound2.fade(1, 0, 2000, voice);
+      },
+      voice,
+    );
   },
 ];
 
