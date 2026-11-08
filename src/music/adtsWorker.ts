@@ -1,3 +1,8 @@
+/*!
+ * Copyright (c) 2026 Nakazawa Tech
+ * SPDX-License-Identifier: MIT
+ */
+
 import {
   BlockFrames,
   type DecoderRequest,

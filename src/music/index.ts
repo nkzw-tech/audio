@@ -1,3 +1,8 @@
+/*!
+ * Copyright (c) 2026 Nakazawa Tech
+ * SPDX-License-Identifier: MIT
+ */
+
 import type { Audio, AudioOutput } from '../index.ts';
 
 export { createAdtsMusicSource, type AdtsMusicOptions } from './adts.ts';

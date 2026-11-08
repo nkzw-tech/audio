@@ -1,3 +1,8 @@
+/*!
+ * Copyright (c) 2026 Nakazawa Tech
+ * SPDX-License-Identifier: MIT
+ */
+
 import { createAudio as createEngine } from './audio.core.js';
 
 export const createAudio: (options?: AudioOptions) => Audio = createEngine;

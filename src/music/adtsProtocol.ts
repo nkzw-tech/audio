@@ -1,3 +1,8 @@
+/*!
+ * Copyright (c) 2026 Nakazawa Tech
+ * SPDX-License-Identifier: MIT
+ */
+
 export const SampleRate = 48_000;
 export const BlockFrames = 2 * SampleRate;
 

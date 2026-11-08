@@ -1,10 +1,10 @@
 /*!
  *  @nkzw/audio
  *
- *  (c) 2013-2020, James Simpson of GoldFire Studios
- *  (c) 2026, Nakazawa Tech
+ *  Copyright (c) 2013-2020 James Simpson and GoldFire Studios, Inc.
+ *  Copyright (c) 2026 Nakazawa Tech
  *
- *  MIT License
+ *  SPDX-License-Identifier: MIT
  */
 
 import { installSpatial } from './plugins/audio.spatial.js';
