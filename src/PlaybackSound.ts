@@ -520,14 +520,14 @@ export class PlaybackSound implements Sound {
       return voice.volume;
     }
     if (value >= 0 && value <= 1) {
-      if (id === undefined) {
-        this.#volume = value;
-      }
       for (const selected of this.#select(id)) {
-        selected.cancelFade();
+        selected.finishFade();
         selected.volume = value;
         selected.applyVolume();
         this.#emit('volume', selected.id);
+      }
+      if (id === undefined) {
+        this.#volume = value;
       }
     }
     return this;
@@ -538,7 +538,7 @@ export class PlaybackSound implements Sound {
       this.#muted = muted;
     }
     for (const voice of this.#select(id)) {
-      voice.cancelFade();
+      voice.finishFade();
       voice.muted = muted;
       voice.applyVolume();
       this.#emit('mute', voice.id);
@@ -560,10 +560,14 @@ export class PlaybackSound implements Sound {
     if (!Number.isFinite(initial) || !Number.isFinite(target) || !Number.isFinite(duration)) {
       return this;
     }
+    const voices = this.#select(id);
+    for (const voice of voices) {
+      voice.finishFade();
+    }
     if (id === undefined) {
       this.#volume = initial;
     }
-    for (const voice of this.#select(id)) {
+    for (const voice of voices) {
       voice.fade(initial, target, Math.max(0, duration), (volume, complete) => {
         if (id === undefined) {
           this.#volume = volume;

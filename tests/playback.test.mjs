@@ -748,3 +748,68 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     },
   );
 }
+
+for (const [name, engine] of engines) {
+  test(
+    `${name}: preserves a preloaded fade-in and completes a replaced fade`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio();
+          const { context } = audio.getOutput();
+          const createGain = context.createGain.bind(context);
+          const report = { fades: 0 };
+          context.createGain = () => {
+            const node = createGain();
+            report.gain = node.gain;
+            return node;
+          };
+          const sound = audio.sound({
+            loop: true,
+            onfade: () => report.fades++,
+            src: '/sound.wav',
+          });
+          window.fadeAudit = { audio, report, sound };
+          document.querySelector('button').addEventListener('click', () => {
+            sound.fade(0, 0.6, 100);
+            report.voice = sound.play();
+          });
+        });
+        await page.waitForFunction(() => window.fadeAudit.sound.state() === 'loaded');
+        await page.getByRole('button').click();
+        await page.waitForFunction(() => window.fadeAudit.report.fades === 1, undefined, {
+          timeout: 3000,
+        });
+        const fadeIn = await page.evaluate(() => {
+          const { report, sound } = window.fadeAudit;
+          return {
+            gain: report.gain.value,
+            group: sound.volume(),
+            voice: sound.volume(report.voice),
+          };
+        });
+        for (const volume of Object.values(fadeIn)) {
+          assert.ok(Math.abs(volume - 0.6) < 0.001, JSON.stringify(fadeIn));
+        }
+
+        await page.evaluate(() => {
+          const { report, sound } = window.fadeAudit;
+          sound.fade(0.6, 0, 1000);
+          sound.once('fade', () => sound.stop(), report.voice);
+          sound.volume(0.35);
+        });
+        await page.waitForFunction(
+          () => window.fadeAudit.report.fades === 2 && !window.fadeAudit.sound.playing(),
+        );
+        await page.evaluate(() => window.fadeAudit.audio.dispose());
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}

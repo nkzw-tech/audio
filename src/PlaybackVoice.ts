@@ -12,6 +12,7 @@ export type Region = { end: number; loop: boolean; start: number };
 
 type Fade = {
   dispose(): void;
+  endTime: number;
   target: number;
   update(volume: number, complete: boolean): void;
 };
@@ -67,7 +68,7 @@ export class PlaybackVoice {
   }
 
   reset({ loop, muted, rate, spatial, volume }: VoiceOptions) {
-    this.cancelFade();
+    const muteChanged = this.muted !== muted;
     this.id = this.mixer.nextId();
     this.sprite = '__default';
     this.offset = 0;
@@ -75,8 +76,24 @@ export class PlaybackVoice {
     this.muted = muted;
     this.rate = rate;
     this.spatial = { ...spatial };
-    this.volume = volume;
-    this.applyVolume();
+    const fade = this.#fade;
+    if (!fade) {
+      this.volume = volume;
+      this.applyVolume();
+    } else if (muteChanged) {
+      const context = this.output?.context;
+      const gain = this.#gain?.gain;
+      if (context && gain) {
+        const now = context.currentTime;
+        gain.cancelScheduledValues(now);
+        this.applyVolume();
+        if (!muted) {
+          gain.linearRampToValueAtTime(fade.target, Math.max(now, fade.endTime));
+        }
+      } else {
+        this.applyVolume();
+      }
+    }
     this.applySpatial();
     return this;
   }
@@ -252,6 +269,7 @@ export class PlaybackVoice {
       source.disconnect();
     }
     this.clearBoundary();
+    this.finishFade();
     this.offset = this.region.start;
     this.state = 'ended';
   }
@@ -353,8 +371,9 @@ export class PlaybackVoice {
     const context = this.output?.context;
     const clock = () => (context ? context.currentTime * 1000 : performance.now());
     const started = clock();
+    const endTime = (started + duration) / 1000;
     if (this.#gain && !this.muted) {
-      this.#gain.gain.linearRampToValueAtTime(to, (started + duration) / 1000);
+      this.#gain.gain.linearRampToValueAtTime(to, endTime);
     }
 
     const controller = new AbortController();
@@ -379,7 +398,7 @@ export class PlaybackVoice {
         timer = setInterval(tick, 10);
       }
     };
-    this.#fade = { dispose, target: to, update };
+    this.#fade = { dispose, endTime, target: to, update };
     context?.addEventListener('statechange', schedule, { signal: controller.signal });
     schedule();
   }
