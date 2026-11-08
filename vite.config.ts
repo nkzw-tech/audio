@@ -6,7 +6,6 @@ export default defineConfig({
     ignorePatterns: [
       '.github/ISSUE_TEMPLATE',
       '.github/PULL_REQUEST_TEMPLATE.md',
-      'CHANGELOG.md',
       'lib',
       'pnpm-lock.yaml',
     ],
