@@ -253,6 +253,12 @@ class BufferedMusic {
   private fail(error: unknown) {
     if (!this.failed && !this.disposed) {
       this.failed = true;
+      const unscheduled = this.blocks.findIndex(({ source }) => !source);
+      if (unscheduled >= 0) {
+        this.decodedThrough = this.anchor == null ? this.frame : this.blocks[unscheduled].frame;
+        this.frame = Math.min(this.frame, this.decodedThrough);
+        this.blocks.length = unscheduled;
+      }
       this.reads.abort();
       this.closeReader();
       this.options.onFailure?.(error);
@@ -295,7 +301,11 @@ class BufferedMusic {
           block.source = source;
         }
       }
-      if (!this.started && now >= this.anchor + this.frame / sampleRate - 1 / sampleRate) {
+      if (
+        !this.failed &&
+        !this.started &&
+        now >= this.anchor + this.frame / sampleRate - 1 / sampleRate
+      ) {
         this.started = true;
         this.options.onPlay?.();
       }
@@ -311,7 +321,7 @@ class BufferedMusic {
     if (!this.failed) {
       if (
         (this.pending && performance.now() > this.readDeadline) ||
-        (this.started && this.decodedThrough === this.frame)
+        (this.anchor != null && this.decodedThrough === this.frame)
       ) {
         this.fail(new Error('Buffered music ran out of decoded audio.'));
       } else if (

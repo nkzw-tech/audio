@@ -868,3 +868,92 @@ for (const [name, engine] of engines) {
     },
   );
 }
+
+for (const [name, engine] of engines) {
+  test(
+    `${name}: falls back at the last audible frame when a buffered block misses its deadline`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const { createBufferedMusic } = await import('/music.js');
+          const audio = createAudio();
+          const { context } = audio.getOutput();
+          const { sampleRate } = context;
+          const blockFrames = sampleRate / 4;
+          const pcm = [new Float32Array(blockFrames)];
+          const delayed = Promise.withResolvers();
+          const report = { failures: 0, plays: 0, reads: 0, releases: 0 };
+          let clock = 0;
+          Object.defineProperty(context, 'currentTime', { get: () => clock });
+          const timeout = window.setTimeout;
+          window.setTimeout = (callback, delay, ...args) =>
+            timeout(callback, delay === 10 ? 60_000 : delay, ...args);
+
+          const track = createBufferedMusic(
+            audio,
+            {
+              blockFrames,
+              async open() {
+                return {
+                  close() {
+                    report.releases++;
+                  },
+                  duration: 1,
+                  async read() {
+                    return ++report.reads === 1 ? pcm : delayed.promise;
+                  },
+                };
+              },
+              sampleRate,
+            },
+            {
+              onFailure() {
+                report.failures++;
+                report.position = track.position();
+                track.unload();
+              },
+              onPlay() {
+                report.plays++;
+              },
+            },
+          );
+
+          window.musicAudit = {
+            audio,
+            missDeadline() {
+              clock = 0.31 + 0.5 / sampleRate;
+              delayed.resolve(pcm);
+            },
+            report,
+            track,
+          };
+          document.querySelector('button').addEventListener('click', () => track.play());
+        });
+        await page.getByRole('button').click();
+        await page.waitForFunction(() => window.musicAudit.report.reads === 2);
+        await page.evaluate(() => window.musicAudit.missDeadline());
+        await page.waitForFunction(() => window.musicAudit.report.failures === 1);
+        const result = await page.evaluate(async () => {
+          const { audio, report, track } = window.musicAudit;
+          await audio.dispose();
+          return { ...report, playing: track.playing() };
+        });
+        assert.deepEqual(result, {
+          failures: 1,
+          playing: false,
+          plays: 0,
+          position: 0.25,
+          reads: 2,
+          releases: 1,
+        });
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}
