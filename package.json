@@ -62,6 +62,7 @@
     "dev": "vp pack && vp dev --open /examples/",
     "prepack": "vp pack 1>&2",
     "prepare": "vp config",
+    "ship": "vp check && vp run test && vp pm publish --access public",
     "test": "vp pack && node --test tests/*.test.mjs"
   },
   "devDependencies": {
