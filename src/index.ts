@@ -12,6 +12,7 @@ export function createAudio(options?: AudioOptions): Audio {
 export type AudioOptions = {
   autoSuspend?: boolean;
   html5PoolSize?: number;
+  sampleRate?: number;
 };
 
 export type AudioOutput = {

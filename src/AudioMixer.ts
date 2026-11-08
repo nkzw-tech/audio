@@ -42,6 +42,7 @@ export class AudioMixer implements Audio {
   readonly #codecSupport = new Map<string, boolean>();
   readonly #autoSuspend: boolean;
   readonly #poolSize: number;
+  readonly #sampleRate: number | undefined;
   #codecProbe: HTMLAudioElement | undefined;
   #counter = 1000;
   #output: AudioOutput | null = null;
@@ -60,9 +61,10 @@ export class AudioMixer implements Audio {
   #resumeAttempt: { active: boolean } | undefined;
   #disposing: Promise<void> | undefined;
 
-  constructor({ autoSuspend = true, html5PoolSize = 10 }: AudioOptions = {}) {
+  constructor({ autoSuspend = true, html5PoolSize = 10, sampleRate }: AudioOptions = {}) {
     this.#autoSuspend = autoSuspend;
     this.#poolSize = html5PoolSize;
+    this.#sampleRate = sampleRate;
   }
 
   get muted() {
@@ -97,7 +99,10 @@ export class AudioMixer implements Audio {
       this.#initialized = true;
       this.#listenForActivation();
       try {
-        const context = typeof globalThis.AudioContext === 'function' ? new AudioContext() : null;
+        const context =
+          typeof globalThis.AudioContext === 'function'
+            ? new AudioContext({ sampleRate: this.#sampleRate })
+            : null;
         if (context) {
           const destination = context.createGain();
           destination.gain.value = this.#muted ? 0 : this.#volume;

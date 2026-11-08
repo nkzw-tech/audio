@@ -256,21 +256,56 @@ for (const [name, engine] of engines) {
 }
 
 for (const [name, engine] of engines) {
+  test(`${name}: uses each mixer's requested sample rate`, { timeout: 15_000 }, async () => {
+    const browser = await engine.launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto(url);
+      const result = await page.evaluate(async () => {
+        const { createAudio } = await import('/audio.js');
+        const context = new AudioContext();
+        const defaultRate = context.sampleRate;
+        await context.close();
+        const mixers = [
+          createAudio(),
+          createAudio({ sampleRate: 44_100 }),
+          createAudio({ sampleRate: 48_000 }),
+        ];
+        const rates = mixers.map((audio) => audio.getOutput().context.sampleRate);
+        await Promise.all(mixers.map((audio) => audio.dispose()));
+        return { defaultRate, rates };
+      });
+      assert.deepEqual(result.rates, [result.defaultRate, 44_100, 48_000]);
+    } finally {
+      await browser.close();
+    }
+  });
+}
+
+for (const [name, engine] of engines) {
   test(
-    `${name}: buffers music on the audio clock and releases it on disposal`,
+    `${name}: buffers 48 kHz music with a 44.1 kHz default and releases it on disposal`,
     { timeout: 15_000 },
     async () => {
       const browser = await engine.launch();
       try {
         const page = await browser.newPage();
         await page.goto(url);
-        await page.evaluate(async () => {
+        const rates = await page.evaluate(async () => {
           const { createAudio } = await import('/audio.js');
           const { createBufferedMusic } = await import('/music.js');
-          const audio = createAudio({ html5PoolSize: 0 });
+          const NativeAudioContext = AudioContext;
+          window.AudioContext = class extends NativeAudioContext {
+            constructor(options) {
+              super({ ...options, sampleRate: options?.sampleRate ?? 44_100 });
+            }
+          };
+          const defaultAudio = createAudio();
+          const defaultRate = defaultAudio.getOutput().context.sampleRate;
+          const audio = createAudio({ html5PoolSize: 0, sampleRate: 48_000 });
           audio.volume(0);
           const { context } = audio.getOutput();
-          const sampleRate = context.sampleRate;
+          const sampleRate = 48_000;
           const blockFrames = sampleRate / 4;
           const report = { closes: 0, error: null, reads: 0, starts: [] };
           const original = context.createBufferSource.bind(context);
@@ -285,33 +320,46 @@ for (const [name, engine] of engines) {
             };
             return source;
           };
-          const track = createBufferedMusic(
-            audio,
-            {
-              blockFrames,
-              async open() {
-                return {
-                  close() {
-                    report.closes++;
-                  },
-                  duration: 4,
-                  async read() {
-                    report.reads++;
-                    return [new Float32Array(blockFrames)];
-                  },
-                };
-              },
-              sampleRate,
+          const source = {
+            blockFrames,
+            async open() {
+              return {
+                close() {
+                  report.closes++;
+                },
+                duration: 4,
+                async read() {
+                  report.reads++;
+                  return [new Float32Array(blockFrames)];
+                },
+              };
             },
-            {
-              bufferSeconds: 1,
-              onFailure(error) {
-                report.error = String(error);
-              },
+            sampleRate,
+          };
+          const defaultTrack = createBufferedMusic(defaultAudio, source);
+          const fallback = defaultTrack === null;
+          defaultTrack?.unload();
+          await defaultAudio.dispose();
+          const track = createBufferedMusic(audio, source, {
+            bufferSeconds: 1,
+            onFailure(error) {
+              report.error = String(error);
             },
-          );
+          });
           window.music = { audio, report, track };
           document.querySelector('button').addEventListener('click', () => track.play());
+          return {
+            buffered: track !== null,
+            defaultRate,
+            fallback,
+            requestedRate: context.sampleRate,
+          };
+        });
+        assert.deepEqual(rates, {
+          buffered: true,
+          defaultRate: 44_100,
+          fallback: true,
+          requestedRate: 48_000,
         });
         await page.getByRole('button').click();
         await page.waitForFunction(() => window.music.report.starts.length >= 4);

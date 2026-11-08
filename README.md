@@ -47,6 +47,8 @@ The sound starts loading when you create it. The mixer picks the first source th
 
 A mixer owns the audio context and master volume. Use `audio.sound()` to create a sound from one or more sources. Set `preload: false` and call `sound.load()` if you want to decide when loading starts. For a live stream or a file you want the browser to stream, set `html5: true`.
 
+Pass `sampleRate` to `createAudio()` to set the context's sample rate. By default, the browser uses the output device's preferred rate. When you request a different rate, the browser resamples the output, which can affect latency.
+
 A sound can play more than once at the same time. Each playback has its own ID, so you can change the volume, rate, or position of one voice while the others keep playing.
 
 ### Playing Audio Sprites
@@ -83,6 +85,8 @@ If you schedule your own Web Audio nodes, `audio.getOutput()` gives you the cont
 The default buffer holds 30 seconds of decoded audio, or about 11 MiB of stereo PCM at 48 kHz. The AAC worker also keeps the compressed track and a small decoder buffer. You can set `bufferSeconds` when creating a track.
 
 The included WebCodecs adapter reads 48 kHz stereo AAC-LC in ADTS. Give it the leading priming frames and any trailing padding from your encoder. In a bundled application, create a module worker entry so your bundler can emit the worker URL.
+
+Create the shared mixer with `createAudio({ sampleRate: 48_000 })` to match this adapter, including when the output device prefers 44.1 kHz.
 
 ```ts
 // music-worker.ts
