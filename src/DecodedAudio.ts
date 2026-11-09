@@ -192,23 +192,21 @@ async function fetchEncoded(url: string, request: SoundOptions['xhr'], signal: A
   if (encoded) {
     data = Uint8Array.from(atob(encoded[1]), (character) => character.charCodeAt(0)).buffer;
   } else {
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        credentials: request?.withCredentials ? 'include' : 'same-origin',
-        headers: request?.headers,
-        method: request?.method ?? 'GET',
-        signal,
-      });
-    } catch (error) {
+    const handleNetworkError = (error: unknown): never => {
       signal.throwIfAborted();
       throw new AudioNetworkError('Could not fetch audio.', { cause: error });
-    }
+    };
+    const response = await fetch(url, {
+      credentials: request?.withCredentials ? 'include' : 'same-origin',
+      headers: request?.headers,
+      method: request?.method ?? 'GET',
+      signal,
+    }).catch(handleNetworkError);
 
     if (!response.ok) {
       throw new Error(`Failed loading audio file with status: ${response.status}.`);
     }
-    data = await response.arrayBuffer();
+    data = await response.arrayBuffer().catch(handleNetworkError);
   }
   signal.throwIfAborted();
   return data;

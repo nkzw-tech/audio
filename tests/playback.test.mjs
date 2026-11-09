@@ -18,6 +18,7 @@ const scripts = new Map([
 ]);
 const aac = await readFile(new URL('./audio/loop.aac', import.meta.url));
 const audio = await readFile(new URL('./audio/sound1.wav', import.meta.url));
+const interruptedDownloads = new Set();
 const server = createServer((request, response) => {
   if (scripts.has(request.url)) {
     response.setHeader('Content-Type', 'application/javascript');
@@ -37,6 +38,14 @@ const server = createServer((request, response) => {
     });
     if (request.method === 'HEAD') {
       response.end();
+    } else if (
+      request.url.startsWith('/sound.wav?interrupt=') &&
+      !interruptedDownloads.has(request.url)
+    ) {
+      interruptedDownloads.add(request.url);
+      response.write(audio.subarray(start, start + 4096));
+      const interrupt = setTimeout(() => response.destroy(), 100);
+      response.once('close', () => clearTimeout(interrupt));
     } else if (request.url.startsWith('/sound.wav?slow') && end - start >= 8192) {
       response.write(audio.subarray(start, start + 8192));
       const rest = setTimeout(() => response.end(audio.subarray(start + 8192, end + 1)), 350);
@@ -54,6 +63,48 @@ server.listen(0, '127.0.0.1');
 await once(server, 'listening');
 const url = `http://127.0.0.1:${server.address().port}`;
 test.after(() => server.close());
+
+for (const [name, engine] of engines) {
+  test(
+    `${name}: falls back to HTML audio when a download is interrupted after its headers`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async (name) => {
+          const { createAudio } = await import('/audio.js');
+          const mixer = createAudio();
+          const src = '/sound.wav?interrupt=' + name;
+          const loaded = Promise.withResolvers();
+          const played = Promise.withResolvers();
+          const sound = mixer.sound({
+            onload: loaded.resolve,
+            onloaderror: (_, error) => loaded.reject(error),
+            onplay: (id) => played.resolve(sound.playing(id)),
+            onplayerror: (_, error) => played.reject(error),
+            src,
+          });
+          await loaded.promise;
+          document.querySelector('button').addEventListener('click', () => sound.play());
+          window.interruptedDownload = { mixer, played: played.promise };
+        }, name);
+        await page.getByRole('button').click();
+        const playing = await page.evaluate(async () => {
+          const { mixer, played } = window.interruptedDownload;
+          const playing = await played;
+          await mixer.dispose();
+          return playing;
+        });
+        assert.equal(playing, true);
+        assert.ok(interruptedDownloads.has('/sound.wav?interrupt=' + name));
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}
 
 test(
   'webkit: plays HTML media first created after the activation gesture expires',
