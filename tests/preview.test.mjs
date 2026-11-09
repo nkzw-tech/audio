@@ -61,7 +61,11 @@ for (const [name, engine] of engines) {
           }
           const src = URL.createObjectURL(new Blob([samples], { type: 'audio/wav' }));
 
-          async function render(previewSeconds, playbackRate, late = false) {
+          async function render(
+            previewSeconds,
+            playbackRate,
+            { changes = [], late = false, releaseAt } = {},
+          ) {
             const context = new OfflineAudioContext(1, rate, rate);
             Object.defineProperty(context, 'state', { value: 'running' });
             globalThis.AudioContext = function () {
@@ -134,12 +138,30 @@ for (const [name, engine] of engines) {
                 replayedImmediately: sources === 4 && sound.playing(replay),
               };
             }
-            if (supportsPreview && previewSeconds !== undefined) {
+            const usesPreview = supportsPreview && previewSeconds !== undefined;
+            if (usesPreview) {
               await decoded.promise;
-              hold.resolve();
-              await scheduled.promise;
+              if (releaseAt === undefined) {
+                hold.resolve();
+                await scheduled.promise;
+              }
             }
-            const output = await context.startRendering();
+            const rateChanges = changes.map(([time, playbackRate]) =>
+              context.suspend(time).then(() => {
+                sound.rate(playbackRate);
+                return context.resume();
+              }),
+            );
+            if (usesPreview && releaseAt !== undefined) {
+              rateChanges.push(
+                context.suspend(releaseAt).then(async () => {
+                  hold.resolve();
+                  await scheduled.promise;
+                  await context.resume();
+                }),
+              );
+            }
+            const [output] = await Promise.all([context.startRendering(), ...rateChanges]);
             return {
               decodes,
               playErrors,
@@ -149,9 +171,21 @@ for (const [name, engine] of engines) {
           }
 
           const comparisons = [];
-          for (const playbackRate of [1, 1.3, 1.7, 2, 4]) {
-            const baseline = await render(undefined, playbackRate);
-            const preview = await render(0.4, playbackRate);
+          const scenarios = [1, 1.3, 1.7, 2, 4].map((playbackRate) => ({ playbackRate }));
+          if (supportsPreview) {
+            const reverseThenForward = [
+              [0.1, -1],
+              [0.15, 1],
+            ];
+            scenarios.push(
+              { changes: [[0.1, -1]], playbackRate: 1 },
+              { changes: reverseThenForward, playbackRate: 1 },
+              { changes: reverseThenForward, playbackRate: 1, releaseAt: 0.18 },
+            );
+          }
+          for (const { changes, playbackRate, releaseAt } of scenarios) {
+            const baseline = await render(undefined, playbackRate, { changes });
+            const preview = await render(0.4, playbackRate, { changes, releaseAt });
             let maxError = 0;
             for (const [i, sample] of preview.waveform.entries()) {
               maxError = Math.max(maxError, Math.abs(sample - baseline.waveform[i]));
@@ -163,7 +197,7 @@ for (const [name, engine] of engines) {
               startedBeforeDecode: preview.startedBeforeDecode,
             });
           }
-          const late = supportsPreview ? await render(0.25, 1, true) : null;
+          const late = supportsPreview ? await render(0.25, 1, { late: true }) : null;
           URL.revokeObjectURL(src);
           return { comparisons, late };
         }, supportsPreview);

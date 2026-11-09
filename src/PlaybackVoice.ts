@@ -45,6 +45,7 @@ type PreviewPlayback = {
   events: WebAudioEvents;
   lease: ReturnType<NonNullable<DecodedAsset['preview']>['acquire']>;
   opening: boolean;
+  reversed?: boolean;
   tail?: { source: AudioBufferSourceNode; when: number };
 };
 
@@ -177,6 +178,9 @@ export class PlaybackVoice {
           ended: () => {
             this.#source?.disconnect();
             this.#source = null;
+            if (this.rate < 0 && !this.region.loop && this.offset < boundary) {
+              events.ended();
+            }
           },
         },
         true,
@@ -265,8 +269,16 @@ export class PlaybackVoice {
 
   #scheduleTail(preview: PreviewPlayback, buffer: AudioBuffer) {
     const { asset, boundary, events } = preview;
-    const rate = Math.abs(Math.fround(this.rate));
-    if (!rate) {
+    const rate = Math.fround(this.rate);
+    if (preview.reversed) {
+      const offset = this.position();
+      this.#disconnectSource(this.#source);
+      this.#source = null;
+      preview.opening = false;
+      this.#startBuffer(buffer, this.region, offset, { ...events, started() {} }, true);
+      return;
+    }
+    if (rate <= 0) {
       return;
     }
     const now = this.output!.context.currentTime;
@@ -335,10 +347,10 @@ export class PlaybackVoice {
       return this.media.currentTime;
     }
     const elapsed = (this.output?.context.currentTime ?? this.anchor) - this.anchor;
-    const rate = this.#preview?.opening ? Math.fround(this.rate) : this.rate;
-    const position = this.offset + elapsed * Math.abs(rate);
+    const rate = this.#preview?.opening ? Math.fround(this.rate) : Math.abs(this.rate);
+    const position = this.offset + elapsed * rate;
     if (this.#preview?.opening && !this.#preview.tail) {
-      return Math.min(this.#preview.boundary, position);
+      return Math.max(this.region.start, Math.min(this.#preview.boundary, position));
     }
     const { end, loop, start } = this.region;
     return loop && position >= end && end > start
@@ -439,6 +451,7 @@ export class PlaybackVoice {
       this.#source?.playbackRate.setValueAtTime(rate, now);
       const preview = this.#preview;
       if (changed && preview?.opening && (!preview.tail || preview.tail.when > now)) {
+        preview.reversed ||= rate < 0;
         this.#disconnectSource(preview.tail?.source);
         preview.tail = undefined;
         if (preview.lease.buffer) {
