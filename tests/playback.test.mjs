@@ -1077,6 +1077,68 @@ for (const [name, engine] of engines) {
 }
 
 for (const [name, engine] of engines) {
+  test(`${name}: keeps an active fade when disabling looping`, { timeout: 15_000 }, async () => {
+    const browser = await engine.launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto(url);
+      await page.evaluate(async () => {
+        const { createAudio } = await import('/audio.js');
+        const audio = createAudio();
+        const loaded = Promise.withResolvers();
+        const sound = audio.sound({
+          loop: true,
+          onload: loaded.resolve,
+          onloaderror: (_, error) => loaded.reject(error),
+          src: '/sound.wav',
+        });
+        await loaded.promise;
+        document.querySelector('button').addEventListener('click', () => {
+          const voice = sound.play();
+          sound.once(
+            'play',
+            () => {
+              const started = performance.now();
+              const report = {};
+              sound.once(
+                'fade',
+                () => {
+                  window.loopFadeResult = {
+                    ...report,
+                    elapsed: performance.now() - started,
+                    looping: sound.loop(voice),
+                    playing: sound.playing(voice),
+                    volume: sound.volume(voice),
+                  };
+                  void audio.dispose();
+                },
+                voice,
+              );
+              sound.fade(1, 0, 600, voice);
+              setTimeout(() => {
+                report.before = sound.volume(voice);
+                sound.loop(false, voice);
+                report.after = sound.volume(voice);
+              }, 100);
+            },
+            voice,
+          );
+        });
+      });
+      await page.getByRole('button').click();
+      await page.waitForFunction(() => window.loopFadeResult);
+      const result = await page.evaluate(() => window.loopFadeResult);
+      assert.ok(result.elapsed >= 500, JSON.stringify(result));
+      assert.ok(result.before > 0);
+      assert.equal(result.after, result.before);
+      assert.equal(result.looping, false);
+      assert.equal(result.playing, true);
+      assert.equal(result.volume, 0);
+    } finally {
+      await browser.close();
+    }
+  });
+
   test(
     `${name}: applies loop changes before a queued voice starts`,
     { timeout: 15_000 },

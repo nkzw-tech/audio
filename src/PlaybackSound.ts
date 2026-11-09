@@ -489,7 +489,7 @@ export class PlaybackSound implements Sound {
       if (voice.state === 'queued') {
         voice.region = this.#region(voice);
       } else if (voice.state === 'playing') {
-        voice.pause();
+        voice.pause({ preserveFade: true });
         voice.state = 'queued';
         this.#start(voice, true);
       }
