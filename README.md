@@ -88,6 +88,8 @@ For a bank of compressed effects, pass `previewSeconds: 0.25` to `audio.sound()`
 
 Choose a duration that gives decoding enough time on your slowest device and at your fastest playback rate. If decoding misses the handoff, the sound emits `bufferunderrun`, resumes from where the opening ended, and keeps the full decode for future plays. Starting beyond the opening waits for the full decode when it is absent.
 
+Firefox keeps the full decode so its resampler can play the effect from a single source.
+
 ### Playing Audio Sprites
 
 Let's put two effects in the same file. Each sprite defines a start offset and a duration in milliseconds.

@@ -157,12 +157,12 @@ export class PlaybackVoice {
   }
 
   startWebAudio(asset: DecodedAsset, region: Region, offset: number, events: WebAudioEvents) {
-    if (!asset.preview || region.end <= asset.buffer.duration) {
+    if (!asset.preview || region.end <= asset.preview.duration) {
       this.#startBuffer(asset.buffer, region, offset, events);
       return;
     }
 
-    const boundary = asset.buffer.duration;
+    const boundary = asset.preview.duration;
     const lease = asset.preview.acquire();
     const opening = !lease.buffer && offset < boundary && this.rate > 0;
     const preview: PreviewPlayback = { asset, boundary, events, lease, opening };
@@ -265,7 +265,7 @@ export class PlaybackVoice {
 
   #scheduleTail(preview: PreviewPlayback, buffer: AudioBuffer) {
     const { asset, boundary, events } = preview;
-    const rate = Math.abs(this.rate);
+    const rate = Math.abs(Math.fround(this.rate));
     if (!rate) {
       return;
     }
@@ -335,7 +335,8 @@ export class PlaybackVoice {
       return this.media.currentTime;
     }
     const elapsed = (this.output?.context.currentTime ?? this.anchor) - this.anchor;
-    const position = this.offset + elapsed * Math.abs(this.rate);
+    const rate = this.#preview?.opening ? Math.fround(this.rate) : this.rate;
+    const position = this.offset + elapsed * Math.abs(rate);
     if (this.#preview?.opening && !this.#preview.tail) {
       return Math.min(this.#preview.boundary, position);
     }

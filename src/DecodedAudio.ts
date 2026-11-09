@@ -46,15 +46,19 @@ export class DecodedAudioCache {
     request: SoundOptions['xhr'],
     previewSeconds: number | undefined,
   ): BufferLease {
+    // Gecko resamples each source independently, so switching sources can shift the waveform.
+    const openingSeconds = /\bGecko\//.test(globalThis.navigator?.userAgent ?? '')
+      ? undefined
+      : previewSeconds;
     const share =
       (!request?.method || request.method === 'GET') &&
       !request?.headers &&
       !request?.withCredentials;
-    const key = JSON.stringify([url, previewSeconds]);
+    const key = JSON.stringify([url, openingSeconds]);
     let asset = share ? this.#assets.get(key) : undefined;
     if (!asset) {
       const abort = new AbortController();
-      const decoded = this.#load(context, url, request, previewSeconds, abort.signal);
+      const decoded = this.#load(context, url, request, openingSeconds, abort.signal);
       const entry: Asset = { abort, decoded, users: 0 };
       entry.decoded = decoded.then((asset) => {
         abort.signal.throwIfAborted();
@@ -113,11 +117,15 @@ export class DecodedAudioCache {
       if (frames >= length) {
         return { buffer, duration };
       }
-      const opening = context.createBuffer(numberOfChannels, frames, sampleRate);
+      const opening = context.createBuffer(numberOfChannels, frames + 1, sampleRate);
       for (let channel = 0; channel < numberOfChannels; channel++) {
         buffer.copyFromChannel(opening.getChannelData(channel), channel);
       }
-      return { buffer: opening, duration, preview: new PreviewAudio(context, data) };
+      return {
+        buffer: opening,
+        duration,
+        preview: new PreviewAudio(context, data, frames / sampleRate),
+      };
     });
     this.#preloadLanes[lane] = prepared.then(
       () => {},
@@ -140,6 +148,7 @@ class PreviewAudio {
   constructor(
     private readonly context: AudioContext,
     private readonly data: ArrayBuffer,
+    readonly duration: number,
   ) {}
 
   acquire() {

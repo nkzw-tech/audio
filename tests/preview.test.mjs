@@ -27,15 +27,18 @@ const engines = Object.entries(
 );
 
 for (const [name, engine] of engines) {
+  const supportsPreview = name !== 'firefox';
   test(
-    `${name}: joins the preloaded opening and the shared decode without a gap`,
+    supportsPreview
+      ? `${name}: joins the preloaded opening and the shared decode without a gap`
+      : `${name}: plays a single buffer per voice when a preview is requested`,
     { timeout: 15_000 },
     async () => {
       const browser = await engine.launch();
       try {
         const page = await browser.newPage();
         await page.goto(url);
-        const result = await page.evaluate(async () => {
+        const result = await page.evaluate(async (supportsPreview) => {
           const { createAudio } = await import('/audio.js');
           const rate = 48_000;
           const samples = new ArrayBuffer(44 + rate * 2);
@@ -54,7 +57,7 @@ for (const [name, engine] of engines) {
           view.setUint32(36, 0x64_61_74_61);
           view.setUint32(40, rate * 2, true);
           for (let i = 0; i < rate; i++) {
-            view.setInt16(44 + i * 2, 10_000 * Math.sin((i * 2 * Math.PI * 219) / rate), true);
+            view.setInt16(44 + i * 2, 10_000 * Math.sin((i * 2 * Math.PI * 3657) / rate), true);
           }
           const src = URL.createObjectURL(new Blob([samples], { type: 'audio/wav' }));
 
@@ -131,7 +134,7 @@ for (const [name, engine] of engines) {
                 replayedImmediately: sources === 4 && sound.playing(replay),
               };
             }
-            if (previewSeconds !== undefined) {
+            if (supportsPreview && previewSeconds !== undefined) {
               await decoded.promise;
               hold.resolve();
               await scheduled.promise;
@@ -146,9 +149,9 @@ for (const [name, engine] of engines) {
           }
 
           const comparisons = [];
-          for (const playbackRate of [1, 2, 4]) {
+          for (const playbackRate of [1, 1.3, 1.7, 2, 4]) {
             const baseline = await render(undefined, playbackRate);
-            const preview = await render(0.25, playbackRate);
+            const preview = await render(0.4, playbackRate);
             let maxError = 0;
             for (const [i, sample] of preview.waveform.entries()) {
               maxError = Math.max(maxError, Math.abs(sample - baseline.waveform[i]));
@@ -160,23 +163,28 @@ for (const [name, engine] of engines) {
               startedBeforeDecode: preview.startedBeforeDecode,
             });
           }
-          const late = await render(0.25, 1, true);
+          const late = supportsPreview ? await render(0.25, 1, true) : null;
           URL.revokeObjectURL(src);
           return { comparisons, late };
-        });
+        }, supportsPreview);
         for (const { decodes, maxError, playErrors, startedBeforeDecode } of result.comparisons) {
-          assert.equal(decodes, 2);
+          assert.equal(decodes, supportsPreview ? 2 : 1);
           assert.equal(playErrors, 0);
           assert.equal(startedBeforeDecode, true);
           assert.ok(maxError <= 0.000001, String(maxError));
         }
-        assert.deepEqual(result.late, {
-          cancelled: true,
-          decodes: 2,
-          position: 0.25,
-          recovered: true,
-          replayedImmediately: true,
-        });
+        assert.deepEqual(
+          result.late,
+          supportsPreview
+            ? {
+                cancelled: true,
+                decodes: 2,
+                position: 0.25,
+                recovered: true,
+                replayedImmediately: true,
+              }
+            : null,
+        );
       } finally {
         await browser.close();
       }
