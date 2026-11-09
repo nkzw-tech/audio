@@ -31,6 +31,26 @@ _audio_ gives these two jobs separate APIs. Use `@nkzw/audio` for effects and or
 - Removed obsolete browser workarounds and replaced the global singleton with explicit mixer instances.
 - Added mixer `dispose()` and improved `unload()` so native resources and shared decoded audio are released when they’re no longer in use.
 
+## Migrating from Howler
+
+Install `@nkzw/audio` and create one mixer for the sounds that share a master volume. Keep that mixer for the lifetime of your app and pass it wherever you create sounds.
+
+```diff
+-import { Howl, Howler } from 'howler';
++import { createAudio } from '@nkzw/audio';
+
+-const confirm = new Howl({ src: ['/sounds/confirm.ogg'] });
+-Howler.volume(0.5);
++const audio = createAudio();
++const confirm = audio.sound({ src: ['/sounds/confirm.ogg'] });
++audio.volume(0.5);
+```
+
+- Keep using sound options like `src`, `preload`, `loop`, `sprite`, and `html5`. Start playback from a user gesture, and pass the ID returned by `play()` to methods like `pause(id)` and `stop(id)` to control one voice.
+- Move mixer settings such as `autoSuspend` and `html5PoolSize` into `createAudio(options)`. If you use `Howler.ctx` or `Howler.masterGain` for custom Web Audio nodes, get `context` and `destination` from `audio.getOutput()` when it is available.
+- Keep calling `sound.unload()` when you’re done with a sound. Use `await audio.dispose()` when tearing down the mixer. Create a new mixer if you need audio again after disposal.
+- If you want to bound decoded memory for long music tracks, see [Buffered Music](#buffered-music). It can use the same mixer as your sound effects.
+
 ## Getting Started
 
 Install `@nkzw/audio` in your project. The package supports ES modules and CommonJS.
