@@ -59,6 +59,7 @@ export type { BufferedMusic };
 class BufferedMusic {
   private readonly context: AudioContext;
   private readonly gain: GainNode;
+  private readonly refillInterval: number;
   private readonly reads = new AbortController();
   private disposed = false;
   private readonly blocks: Array<Block> = [];
@@ -84,6 +85,10 @@ class BufferedMusic {
   ) {
     this.context = output.context;
     this.gain = this.context.createGain();
+    this.refillInterval = Math.min(
+      RefillInterval,
+      ((bufferFrames - source.blockFrames) / source.sampleRate) * 500,
+    );
     this.gain.connect(output.destination);
     output.signal.addEventListener('abort', this.unload, { once: true });
   }
@@ -337,7 +342,9 @@ class BufferedMusic {
     if (this.release) {
       this.timer = setTimeout(
         this.update,
-        this.anchor != null && !this.started ? 10 : RefillInterval,
+        this.anchor != null && !this.started
+          ? Math.min(10, this.refillInterval)
+          : this.refillInterval,
       );
     }
   }

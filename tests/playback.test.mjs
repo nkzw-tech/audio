@@ -1083,6 +1083,68 @@ for (const [name, engine] of engines) {
 
 for (const [name, engine] of engines) {
   test(
+    `${name}: keeps a short music buffer filled during playback`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const { createBufferedMusic } = await import('/music.js');
+          const audio = createAudio();
+          const { sampleRate } = audio.getOutput().context;
+          const blockFrames = Math.floor(sampleRate / 10);
+          const pcm = [new Float32Array(blockFrames).fill(0.1)];
+          const report = { error: null, reads: 0 };
+          const track = createBufferedMusic(
+            audio,
+            {
+              blockFrames,
+              async open() {
+                return {
+                  close() {},
+                  duration: 5,
+                  async read() {
+                    report.reads++;
+                    return pcm;
+                  },
+                };
+              },
+              sampleRate,
+            },
+            {
+              bufferSeconds: 0.2,
+              onFailure(error) {
+                report.error = String(error);
+              },
+            },
+          );
+          window.shortMusic = { audio, report, track };
+          document.querySelector('button').addEventListener('click', () => track.play());
+        });
+        await page.getByRole('button').click();
+        await page.waitForFunction(() => {
+          const { report, track } = window.shortMusic;
+          return report.error || track.position() >= 0.5;
+        });
+        const result = await page.evaluate(async () => {
+          const { audio, report, track } = window.shortMusic;
+          const playing = track.playing();
+          await audio.dispose();
+          return { ...report, playing };
+        });
+        assert.equal(result.error, null);
+        assert.equal(result.playing, true);
+        assert.ok(result.reads > 2);
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+
+  test(
     `${name}: falls back at the last audible frame when a buffered block misses its deadline`,
     { timeout: 15_000 },
     async () => {
