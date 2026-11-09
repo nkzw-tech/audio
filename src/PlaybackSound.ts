@@ -140,6 +140,11 @@ export class PlaybackSound implements Sound {
         error: (error) => {
           if (this.#state === 'loading') {
             this.#loadFailed(error, voice.id);
+          } else if (this.#state === 'loaded') {
+            if (voice.state !== 'ended') {
+              voice.stop({ preserveFade: true });
+            }
+            this.#emit('loaderror', voice.id, error);
           }
         },
         load: (duration, ready) => {

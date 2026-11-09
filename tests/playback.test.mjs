@@ -66,6 +66,72 @@ test.after(() => server.close());
 
 for (const [name, engine] of engines) {
   test(
+    `${name}: reports native media errors after the sound has loaded`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio();
+          const load = HTMLMediaElement.prototype.load;
+          let media;
+          HTMLMediaElement.prototype.load = function () {
+            if (this.getAttribute('src') === '/sound.wav') {
+              media = this;
+            }
+            return load.call(this);
+          };
+          const ready = Promise.withResolvers();
+          const result = Promise.withResolvers();
+          const sound = audio.sound({
+            html5: true,
+            onload: ready.resolve,
+            src: '/sound.wav',
+          });
+          sound.once('loaderror', (_, error) => ready.reject(error));
+          await ready.promise;
+          document.querySelector('button').addEventListener('click', () => {
+            const voice = sound.play();
+            sound.once(
+              'play',
+              () => {
+                sound.once(
+                  'loaderror',
+                  (id, error) => {
+                    result.resolve({
+                      error,
+                      playing: sound.playing(voice),
+                      sameVoice: id === voice,
+                    });
+                    void audio.dispose();
+                  },
+                  voice,
+                );
+                media.src = '/missing.wav';
+                media.load();
+              },
+              voice,
+            );
+          });
+          window.mediaFailure = result.promise;
+        });
+        await page.getByRole('button').click();
+        const result = await page.evaluate(() => window.mediaFailure);
+        assert.ok(result.error > 0);
+        assert.equal(result.sameVoice, true);
+        assert.equal(result.playing, false);
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+}
+
+for (const [name, engine] of engines) {
+  test(
     `${name}: falls back to HTML audio when a download is interrupted after its headers`,
     { timeout: 15_000 },
     async () => {
