@@ -1032,45 +1032,60 @@ for (const [name, engine] of engines) {
           await page.evaluate(async (html5) => {
             const { createAudio } = await import('/audio.js');
             const audio = createAudio();
+            const sources = [];
+            if (html5) {
+              const play = HTMLMediaElement.prototype.play;
+              HTMLMediaElement.prototype.play = function () {
+                sources.push(this);
+                return play.call(this);
+              };
+            } else {
+              const { context } = audio.getOutput();
+              const createSource = context.createBufferSource.bind(context);
+              context.createBufferSource = () => {
+                const source = createSource();
+                sources.push(source);
+                return source;
+              };
+            }
             const loaded = Promise.withResolvers();
             const sound = audio.sound({
               html5,
               onload: loaded.resolve,
               onloaderror: (_, error) => loaded.reject(error),
-              sprite: { long: [0, 2000], short: [0, 200] },
               src: '/sound.wav',
             });
             await loaded.promise;
-            document.querySelector('button').addEventListener('click', () => {
-              const long = sound.play('long');
-              const short = sound.play('short');
-              sound.once(
-                'play',
-                () => {
-                  const started = performance.now();
-                  const report = { shortEnded: false };
-                  sound.once('end', () => (report.shortEnded = true), short);
-                  sound.once('fade', () => {
-                    window.fadeResult = {
-                      elapsed: performance.now() - started,
-                      longPlaying: sound.playing(long),
-                      shortEnded: report.shortEnded,
-                    };
-                    sound.stop();
-                    void audio.dispose();
-                  });
-                  sound.fade(1, 0, 600);
-                },
-                short,
+            document.querySelector('button').addEventListener('click', async () => {
+              const long = sound.play();
+              const short = sound.play();
+              await Promise.all(
+                [long, short].map(
+                  (id) => new Promise((resolve) => sound.once('play', resolve, id)),
+                ),
               );
+              const started = performance.now();
+              let shortEnded = false;
+              sound.once('end', () => (shortEnded = true), short);
+              sound.once('fade', () => {
+                window.fadeResult = {
+                  elapsed: performance.now() - started,
+                  longPlaying: sound.playing(long),
+                  shortEnded,
+                };
+                sound.stop();
+                void audio.dispose();
+              });
+              sound.fade(1, 0, 600);
+              sources[1].dispatchEvent(new Event('ended'));
             });
           }, html5);
           await page.getByRole('button').click();
           await page.waitForFunction(() => window.fadeResult);
           const result = await page.evaluate(() => window.fadeResult);
           assert.ok(result.elapsed >= 500, JSON.stringify({ html5, ...result }));
-          assert.equal(result.shortEnded, true);
-          assert.equal(result.longPlaying, true);
+          assert.equal(result.shortEnded, true, JSON.stringify({ html5, ...result }));
+          assert.equal(result.longPlaying, true, JSON.stringify({ html5, ...result }));
         }
       } finally {
         await browser.close();
