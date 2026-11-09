@@ -158,7 +158,7 @@ export class PlaybackSound implements Sound {
 
   #takeVoice() {
     const poolSize = this.#options.pool || 5;
-    const inactive = this.#voices.filter(({ state }) => state === 'ended');
+    const inactive = this.#voices.filter(({ reusable }) => reusable);
     for (const voice of inactive.slice(Math.max(1, poolSize))) {
       voice.disconnect();
       this.#voices.splice(this.#voices.indexOf(voice), 1);
@@ -591,7 +591,7 @@ export class PlaybackSound implements Sound {
       this.#volume = initial;
     }
     for (const voice of voices) {
-      voice.fade(initial, target, Math.max(0, duration), (volume, complete) => {
+      voice.fade(initial, target, Math.max(0, duration), id !== undefined, (volume, complete) => {
         if (id === undefined) {
           this.#volume = volume;
         }

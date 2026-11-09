@@ -14,6 +14,7 @@ export type Region = { end: number; loop: boolean; start: number };
 type Fade = {
   dispose(): void;
   endTime: number;
+  perVoice: boolean;
   target: number;
   update(volume: number, complete: boolean): void;
 };
@@ -86,6 +87,10 @@ export class PlaybackVoice {
     this.rate = rate;
     this.spatial = { ...spatial };
     this.volume = volume;
+  }
+
+  get reusable() {
+    return this.state === 'ended' && !this.#fade?.perVoice;
   }
 
   reset({ loop, muted, rate, spatial, volume }: VoiceOptions) {
@@ -521,6 +526,7 @@ export class PlaybackVoice {
     from: number,
     to: number,
     duration: number,
+    perVoice: boolean,
     update: (volume: number, complete: boolean) => void,
   ) {
     this.cancelFade();
@@ -562,7 +568,7 @@ export class PlaybackVoice {
         timer = setInterval(tick, 10);
       }
     };
-    this.#fade = { dispose, endTime, target: to, update };
+    this.#fade = { dispose, endTime, perVoice, target: to, update };
     context?.addEventListener('statechange', schedule, { signal: controller.signal });
     schedule();
   }

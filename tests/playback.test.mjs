@@ -1079,6 +1079,55 @@ for (const [name, engine] of engines) {
   );
 
   test(
+    `${name}: completes an ended HTML voice's fade under its original ID`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio();
+          const loaded = Promise.withResolvers();
+          const sound = audio.sound({
+            html5: true,
+            onload: loaded.resolve,
+            onloaderror: (_, error) => loaded.reject(error),
+            sprite: { long: [0, 2000], short: [0, 200] },
+            src: '/sound.wav',
+          });
+          await loaded.promise;
+          const result = Promise.withResolvers();
+          document.querySelector('button').addEventListener('click', () => {
+            const short = sound.play('short');
+            let long;
+            sound.once('end', () => (long = sound.play('long')), short);
+            sound.once('play', () => sound.fade(1, 0, 600, short), short);
+            sound.once('fade', (id) => {
+              result.resolve({
+                originalVoice: id === short,
+                otherPlaying: sound.playing(long),
+                otherVolume: sound.volume(long),
+              });
+              void audio.dispose();
+            });
+          });
+          window.voiceFadeResult = result.promise;
+        });
+        await page.getByRole('button').click();
+        assert.deepEqual(await page.evaluate(() => window.voiceFadeResult), {
+          originalVoice: true,
+          otherPlaying: true,
+          otherVolume: 1,
+        });
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+
+  test(
     `${name}: preserves a fade-in when seeking before playback`,
     { timeout: 15_000 },
     async () => {
