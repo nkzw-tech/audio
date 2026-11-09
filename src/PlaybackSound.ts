@@ -459,7 +459,7 @@ export class PlaybackSound implements Sound {
       const voice = id === undefined ? (this.#voices[0] ?? this.#createVoice()) : this.#find(id);
       if (voice) {
         const restart = voice.state === 'playing' || voice.state === 'queued';
-        voice.pause();
+        voice.pause({ preserveFade: voice.state !== 'playing' });
         voice.offset = value;
         if (restart) {
           voice.state = 'queued';

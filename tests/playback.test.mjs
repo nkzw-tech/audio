@@ -1013,6 +1013,53 @@ for (const [name, engine] of engines) {
   );
 
   test(
+    `${name}: preserves a fade-in when seeking before playback`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.evaluate(async () => {
+          const { createAudio } = await import('/audio.js');
+          const audio = createAudio();
+          const loaded = Promise.withResolvers();
+          const sound = audio.sound({
+            onload: loaded.resolve,
+            onloaderror: (_, error) => loaded.reject(error),
+            src: '/sound.wav',
+          });
+          await loaded.promise;
+          const finished = Promise.withResolvers();
+          document.querySelector('button').addEventListener('click', () => {
+            const started = performance.now();
+            sound.fade(0, 1, 500);
+            sound.seek(2);
+            const volumeAfterSeek = sound.volume();
+            const voice = sound.play();
+            sound.once('fade', () => {
+              finished.resolve({
+                elapsed: performance.now() - started,
+                position: sound.position(voice),
+                volumeAfterSeek,
+              });
+              void audio.dispose();
+            });
+          });
+          window.seekFadeResult = finished.promise;
+        });
+        await page.getByRole('button').click();
+        const result = await page.evaluate(() => window.seekFadeResult);
+        assert.ok(result.elapsed >= 400, JSON.stringify(result));
+        assert.ok(result.position >= 2);
+        assert.equal(result.volumeAfterSeek, 0);
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+
+  test(
     `${name}: preserves a preloaded fade-in and completes a replaced fade`,
     { timeout: 15_000 },
     async () => {
