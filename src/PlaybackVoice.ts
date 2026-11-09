@@ -186,9 +186,6 @@ export class PlaybackVoice {
         true,
       );
       this.region = region;
-      if (region.loop) {
-        this.scheduleBoundary(events.ended);
-      }
     } else if (!lease.buffer) {
       this.cancelStart = () => this.#releasePreview();
     }
@@ -295,6 +292,9 @@ export class PlaybackVoice {
       source: this.#startSource(buffer, this.region, boundary, when, events.ended),
       when,
     };
+    if (this.region.loop) {
+      this.scheduleBoundary(events.ended);
+    }
   }
 
   async startMedia(
@@ -452,20 +452,23 @@ export class PlaybackVoice {
       const preview = this.#preview;
       if (changed && preview?.opening && (!preview.tail || preview.tail.when > now)) {
         preview.reversed ||= rate < 0;
+        this.clearBoundary();
         this.#disconnectSource(preview.tail?.source);
         preview.tail = undefined;
         if (preview.lease.buffer) {
           this.#scheduleTail(preview, preview.lease.buffer);
         }
-      } else {
-        preview?.tail?.source.playbackRate.setValueAtTime(rate, now);
+        return;
       }
+      preview?.tail?.source.playbackRate.setValueAtTime(rate, now);
     } else if (this.media) {
       this.media.playbackRate = rate;
     }
     if (
       this.state === 'playing' &&
-      (this.output ? this.region.loop : this.sprite !== '__default')
+      (this.output
+        ? this.region.loop && (!this.#preview?.opening || this.#preview.tail)
+        : this.sprite !== '__default')
     ) {
       this.scheduleBoundary(ended);
     }

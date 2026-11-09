@@ -64,7 +64,7 @@ for (const [name, engine] of engines) {
           async function render(
             previewSeconds,
             playbackRate,
-            { changes = [], late = false, releaseAt } = {},
+            { changes = [], late = false, loop = false, releaseAt } = {},
           ) {
             const context = new OfflineAudioContext(1, rate, rate);
             Object.defineProperty(context, 'state', { value: 'running' });
@@ -103,12 +103,15 @@ for (const [name, engine] of engines) {
 
             const mixer = createAudio({ autoSuspend: false });
             const loaded = Promise.withResolvers();
+            const loopPositions = [];
             const sound = mixer.sound({
               format: 'wav',
+              loop,
               onbufferunderrun: (id) => {
                 playErrors++;
                 underrun.resolve(id);
               },
+              onend: (id) => loopPositions.push(sound.position(id)),
               onload: loaded.resolve,
               onloaderror: (_, error) => loaded.reject(error),
               onplayerror: () => playErrors++,
@@ -117,6 +120,27 @@ for (const [name, engine] of engines) {
               src,
             });
             await loaded.promise;
+            let clock = 0;
+            const timeout = window.setTimeout;
+            const clear = window.clearTimeout;
+            const boundaries = new Map();
+            if (loop) {
+              Object.defineProperty(context, 'currentTime', { get: () => clock });
+              let nextId = 0;
+              window.setTimeout = (callback, delay) => {
+                if (!delay) {
+                  return timeout(callback, delay);
+                }
+                const id = --nextId;
+                boundaries.set(id, { at: clock + delay / 1000, callback });
+                return id;
+              };
+              window.clearTimeout = (id) => {
+                if (!boundaries.delete(id)) {
+                  clear(id);
+                }
+              };
+            }
             const first = sound.play();
             const second = sound.play();
             const startedBeforeDecode =
@@ -124,9 +148,32 @@ for (const [name, engine] of engines) {
             if (late) {
               await decoded.promise;
               sound.stop(second);
-              Object.defineProperty(context, 'currentTime', { value: 0.5 });
+              if (loop) {
+                clock = 0.5;
+              } else {
+                Object.defineProperty(context, 'currentTime', { value: 0.5 });
+              }
               hold.resolve();
               const [id] = await Promise.all([underrun.promise, continued.promise]);
+              if (loop) {
+                const advance = async (time) => {
+                  clock = time;
+                  for (const [id, { at, callback }] of boundaries) {
+                    if (at <= clock) {
+                      boundaries.delete(id);
+                      callback();
+                    }
+                  }
+                  await new Promise((resolve) => timeout(resolve, 0));
+                };
+                await advance(1);
+                const earlyEnds = loopPositions.length;
+                await advance(1.25);
+                sound.unload();
+                window.setTimeout = timeout;
+                window.clearTimeout = clear;
+                return { earlyEnds, loopPositions };
+              }
               const position = sound.position(first);
               const cancelled = !sound.playing(second);
               const replay = sound.play();
@@ -198,8 +245,11 @@ for (const [name, engine] of engines) {
             });
           }
           const late = supportsPreview ? await render(0.25, 1, { late: true }) : null;
+          const lateLoop = supportsPreview
+            ? await render(0.25, 1, { late: true, loop: true })
+            : null;
           URL.revokeObjectURL(src);
-          return { comparisons, late };
+          return { comparisons, late, lateLoop };
         }, supportsPreview);
         for (const { decodes, maxError, playErrors, startedBeforeDecode } of result.comparisons) {
           assert.equal(decodes, supportsPreview ? 2 : 1);
@@ -218,6 +268,10 @@ for (const [name, engine] of engines) {
                 replayedImmediately: true,
               }
             : null,
+        );
+        assert.deepEqual(
+          result.lateLoop,
+          supportsPreview ? { earlyEnds: 0, loopPositions: [0] } : null,
         );
       } finally {
         await browser.close();
