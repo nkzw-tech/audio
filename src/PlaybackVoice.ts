@@ -32,6 +32,8 @@ type MediaEvents = {
   load(duration: number, ready: boolean): void;
 };
 
+type PauseOptions = { preserveFade?: boolean };
+
 type WebAudioEvents = {
   ended(): void;
   failed(error: unknown): void;
@@ -358,7 +360,7 @@ export class PlaybackVoice {
       : Math.min(end, position);
   }
 
-  pause() {
+  pause({ preserveFade = false }: PauseOptions = {}) {
     const position = this.position();
     this.cancelStart?.();
     this.cancelStart = undefined;
@@ -366,14 +368,16 @@ export class PlaybackVoice {
     this.startingMedia = false;
     this.clearBoundary();
     this.#stopSource();
-    this.finishFade();
+    if (!preserveFade) {
+      this.finishFade();
+    }
     this.media?.pause();
     this.offset = position;
     this.state = 'paused';
   }
 
-  stop() {
-    this.pause();
+  stop(options?: PauseOptions) {
+    this.pause(options);
     this.offset = this.region.start;
     this.state = 'ended';
     const media = this.media;
@@ -414,7 +418,6 @@ export class PlaybackVoice {
     this.cancelStart = undefined;
     this.#stopSource();
     this.clearBoundary();
-    this.finishFade();
     this.offset = this.region.start;
     this.state = 'ended';
   }

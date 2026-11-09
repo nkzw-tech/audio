@@ -955,6 +955,64 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
 
 for (const [name, engine] of engines) {
   test(
+    `${name}: keeps a group fade running after a short voice ends`,
+    { timeout: 15_000 },
+    async () => {
+      const browser = await engine.launch();
+      try {
+        const page = await browser.newPage();
+        for (const html5 of [false, true]) {
+          await page.goto(url);
+          await page.evaluate(async (html5) => {
+            const { createAudio } = await import('/audio.js');
+            const audio = createAudio();
+            const loaded = Promise.withResolvers();
+            const sound = audio.sound({
+              html5,
+              onload: loaded.resolve,
+              onloaderror: (_, error) => loaded.reject(error),
+              sprite: { long: [0, 2000], short: [0, 200] },
+              src: '/sound.wav',
+            });
+            await loaded.promise;
+            document.querySelector('button').addEventListener('click', () => {
+              const long = sound.play('long');
+              const short = sound.play('short');
+              sound.once(
+                'play',
+                () => {
+                  const started = performance.now();
+                  const report = { shortEnded: false };
+                  sound.once('end', () => (report.shortEnded = true), short);
+                  sound.once('fade', () => {
+                    window.fadeResult = {
+                      elapsed: performance.now() - started,
+                      longPlaying: sound.playing(long),
+                      shortEnded: report.shortEnded,
+                    };
+                    sound.stop();
+                    void audio.dispose();
+                  });
+                  sound.fade(1, 0, 600);
+                },
+                short,
+              );
+            });
+          }, html5);
+          await page.getByRole('button').click();
+          await page.waitForFunction(() => window.fadeResult);
+          const result = await page.evaluate(() => window.fadeResult);
+          assert.ok(result.elapsed >= 500, JSON.stringify({ html5, ...result }));
+          assert.equal(result.shortEnded, true);
+          assert.equal(result.longPlaying, true);
+        }
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+
+  test(
     `${name}: preserves a preloaded fade-in and completes a replaced fade`,
     { timeout: 15_000 },
     async () => {

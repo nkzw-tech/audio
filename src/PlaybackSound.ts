@@ -356,6 +356,7 @@ export class PlaybackSound implements Sound {
       const { asset } = this.#bufferLease;
       const failed = (error: unknown) => {
         voice.finishWebAudio();
+        voice.finishFade();
         this.mixer.idle();
         this.#emit('playerror', id, error);
       };
@@ -389,14 +390,14 @@ export class PlaybackSound implements Sound {
     if (voice.output && voice.region.loop && voice.state === 'playing') {
       this.#emit('play', voice.id);
     } else if (voice.media && voice.region.loop && voice.state === 'playing') {
-      voice.stop();
+      voice.stop({ preserveFade: true });
       voice.state = 'queued';
       this.#start(voice);
     } else {
       if (voice.output) {
         voice.finishWebAudio();
       } else {
-        voice.stop();
+        voice.stop({ preserveFade: true });
       }
       this.mixer.idle();
     }
