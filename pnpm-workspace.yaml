@@ -1,3 +1,5 @@
+minimumReleaseAgeExclude:
+  - '@nkzw/oxlint-config@3.0.0'
 peerDependencyRules:
   allowedVersions:
     vite: '*'

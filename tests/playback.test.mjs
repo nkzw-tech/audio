@@ -30,12 +30,15 @@ const server = createServer((request, response) => {
     const range = request.headers.range?.match(/^bytes=(\d+)-(\d*)$/);
     const start = range ? Number(range[1]) : 0;
     const end = range?.[2] ? Math.min(Number(range[2]), audio.length - 1) : audio.length - 1;
-    response.writeHead(range ? 206 : 200, {
+    const headers = {
       'Accept-Ranges': 'bytes',
       'Content-Length': end - start + 1,
       'Content-Type': 'audio/wav',
-      ...(range ? { 'Content-Range': `bytes ${start}-${end}/${audio.length}` } : {}),
-    });
+    };
+    if (range) {
+      headers['Content-Range'] = `bytes ${start}-${end}/${audio.length}`;
+    }
+    response.writeHead(range ? 206 : 200, headers);
     if (request.method === 'HEAD') {
       response.end();
     } else if (
@@ -1011,7 +1014,10 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
           return { errors, ids };
         });
         assert.deepEqual(errors, []);
-        assert.deepEqual(ids.toSorted(), expected.toSorted());
+        assert.deepEqual(
+          ids.toSorted((a, b) => a - b),
+          expected.toSorted((a, b) => a - b),
+        );
       } finally {
         await browser.close();
       }

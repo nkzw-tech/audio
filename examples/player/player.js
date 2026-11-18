@@ -186,7 +186,7 @@ Player.prototype = {
     const self = this;
 
     // Get the next track based on the direction of the track.
-    let index = 0;
+    let index;
     if (direction === 'prev') {
       index = self.index - 1;
       if (index < 0) {

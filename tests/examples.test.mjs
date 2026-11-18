@@ -26,14 +26,17 @@ async function serveRadio(route) {
   const end = range?.[2]
     ? Math.min(Number(range[2]), radioTrack.length - 1)
     : radioTrack.length - 1;
+  const headers = {
+    'Accept-Ranges': 'bytes',
+    'Content-Length': String(end - start + 1),
+  };
+  if (range) {
+    headers['Content-Range'] = `bytes ${start}-${end}/${radioTrack.length}`;
+  }
   await route.fulfill({
     body: radioTrack.subarray(start, end + 1),
     contentType: 'audio/mpeg',
-    headers: {
-      'Accept-Ranges': 'bytes',
-      'Content-Length': String(end - start + 1),
-      ...(range ? { 'Content-Range': `bytes ${start}-${end}/${radioTrack.length}` } : {}),
-    },
+    headers,
     status: range ? 206 : 200,
   });
 }

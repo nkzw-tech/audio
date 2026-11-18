@@ -12,23 +12,23 @@ import { setVector } from './SpatialAudio.ts';
 const IdleTime = 30_000;
 const ActivationEvents = ['click', 'keydown', 'touchend'] as const;
 
-const Codecs: Readonly<Record<string, ReadonlyArray<string>>> = {
-  aac: ['audio/aac'],
-  caf: ['audio/x-caf'],
-  dolby: ['audio/mp4; codecs="ec-3"'],
-  flac: ['audio/flac', 'audio/x-flac'],
-  m4a: ['audio/x-m4a', 'audio/m4a', 'audio/aac'],
-  m4b: ['audio/x-m4b', 'audio/m4b', 'audio/aac'],
-  mp3: ['audio/mpeg', 'audio/mp3'],
-  mp4: ['audio/x-mp4', 'audio/mp4', 'audio/aac'],
-  mpeg: ['audio/mpeg'],
-  oga: ['audio/ogg; codecs="vorbis"'],
-  ogg: ['audio/ogg; codecs="vorbis"'],
-  opus: ['audio/ogg; codecs="opus"'],
-  wav: ['audio/wav; codecs="1"', 'audio/wav'],
-  weba: ['audio/webm; codecs="vorbis"'],
-  webm: ['audio/webm; codecs="vorbis"'],
-};
+const Codecs = new Map([
+  ['aac', ['audio/aac']],
+  ['caf', ['audio/x-caf']],
+  ['dolby', ['audio/mp4; codecs="ec-3"']],
+  ['flac', ['audio/flac', 'audio/x-flac']],
+  ['m4a', ['audio/x-m4a', 'audio/m4a', 'audio/aac']],
+  ['m4b', ['audio/x-m4b', 'audio/m4b', 'audio/aac']],
+  ['mp3', ['audio/mpeg', 'audio/mp3']],
+  ['mp4', ['audio/x-mp4', 'audio/mp4', 'audio/aac']],
+  ['mpeg', ['audio/mpeg']],
+  ['oga', ['audio/ogg; codecs="vorbis"']],
+  ['ogg', ['audio/ogg; codecs="vorbis"']],
+  ['opus', ['audio/ogg; codecs="opus"']],
+  ['wav', ['audio/wav; codecs="1"', 'audio/wav']],
+  ['weba', ['audio/webm; codecs="vorbis"']],
+  ['webm', ['audio/webm; codecs="vorbis"']],
+]);
 
 type Orientation = [number, number, number, number, number, number];
 
@@ -164,7 +164,9 @@ export class AudioMixer implements Audio {
 
     try {
       this.#codecProbe ??= new globalThis.Audio();
-      const supported = Boolean(Codecs[name]?.some((mime) => this.#codecProbe?.canPlayType(mime)));
+      const supported = Boolean(
+        Codecs.get(name)?.some((mime) => this.#codecProbe?.canPlayType(mime)),
+      );
       this.#codecSupport.set(name, supported);
       return supported;
     } catch {
